@@ -446,9 +446,12 @@ Celle-ci va permettre d'exploiter les mécanismes de [`subuid`](http://man7.org/
 Ainsi, il est possible de définir des plages d'`uid` et `gid` -dans leurs fichiers respectifs- afin de définir les IDs qui pourront être utilisés par ces nouveaux utilisateurs. On utilise souvent l'argument `default` à cette option, qui a pour effet d'utiliser un utilisateur et un groupe qui portent le nom de `dockremap` (le changer est purement cosmétique).  
 
 
-**Exemple : un utilisateur `root` dans le conteneur qui correspond à un autre utilisateur sur l'hôte.**
+**Exemple : un utilisateur `root` dans le conteneur qui correspond à un autre utilisateur sur l'hôte.**  
 
-Vous pouvez même essayer de `-v /:/host`, l'utilisateur `root` est strictement impuissant.  
+![](https://github.com/It4lik/markdownResources/blob/master/dockerSecurity/pics/mitigating-attack-surface-with-usernamespaces-remapping.gif)
+
+
+Avec une telle configuration, vous pouvez même essayer de `-v /:/host`, l'utilisateur `root` est strictement impuissant.  
 
 **NB1: il vous faudra activer le support du `namespace` de type `user` pour que ceci puisse fonctionner.** Sur les systèmes RHEL7/CentOS7, ce n'est qu'une feature en preview. Pour vérifier son activation c'est `/proc/cmdline`, l'option `user_namespace.enable=1` doit être positionné. Le cas échéant, reportez-vous [ici](https://github.com/procszoo/procszoo/wiki/How-to-enable-%22user%22-namespace-in-RHEL7-and-CentOS7%3F) pour plus d'informations.
 
