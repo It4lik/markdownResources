@@ -63,7 +63,7 @@ Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits
     * [Construction d'images](#construction-dimages)
   * [Les conteneurs Docker](#sécurité-des-conteneurs-docker)
     * [Options lors du `docker run`](#les-options)
-    * [Utilisateurs applicatifs ?...](#utilisateurs-applicatifs-)
+    * [Gestion des utilisateurs](#gestion-des-utilisateurs)
   * [Discussion autour de l'orchestration](#discussion-autour-des-systèmes-dorchestration-de-conteneurs)
   * [Réseau : aperçu](#le-réseau-dans-docker)
   * [Stockage : aperçu](#le-stockage-et-la-sauvegarde-avec-docker)
@@ -148,6 +148,8 @@ Il existe un certain nombre de contrôleurs qui peut dépendre en fonction de la
 * ***cpuset*** : permet d'allouer un coeur processeur à un groupe de tâche
 * ***blkio*** : permet de limiter les actions de lecture ET d'écriture sur un périphérique de type bloc
 * ***net_prio*** : permet de prioriser le trafic de certaines interfaces réseau vis-à-vis d'autres
+
+*`man cgroups` pour une liste complète`.
 
 Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
 
@@ -297,7 +299,9 @@ L'API peut être exposée *via* deux technologies :
 Le démon docker (généralement géré à l'aide de ``systemd``) est lançable manuellement avec le binaire ``dockerd``. De nombreuses options sont à notre disposition, parmis lesquelles :
 * ``--icc`` : permet d'activer la communication inter-conteneur. **``true`` par défaut.**
 * ``--ip`` : permet de choisir l'adresse de l'hôte utilisée pour les forwardings de port. **Par défaut : 0.0.0.0**.
-* ``--userns-remap`` : permet de choisir quel utilisateur lancera les conteneurs. **Par défaut, c'est root**.
+* ``--user`` : permet de choisir quel utilisateur lancera les conteneurs. **Par défaut, c'est root**.
+* ``--userns`` : permet de choisir arbitrairement quel `user namespace` sera utilisé par le conteneur. Par défaut, un nouveau est créé à chaque `docker run`.
+
 
 Ces quelques options peuvent suffire à faire peur. Et leur paramétrage par défaut est caractéristique de "this is a feature, not a vuln". Ce ne serait que pure vulnérabilité si on ne pouvait pas modifier nous-mêmes ces paramètres.  
 Et je pense qu'ils ont raison de considérer ça comme une "feature". La sécurité par défaut **pourrait** en effet être renforcée. Mais une configuration très restrictive de cet outil, réalisée arbitrairement par les développeurs de Docker, engendrerait nécessairement un gros travail de configuration à tous les utilisateurs. Ce n'est pas un problème en soit, mais le travail serait effectivement énorme.   
@@ -374,11 +378,23 @@ Cependant on trouve aussi un grand nombre d'options auxquelles il est **nécessa
 
 Avec ces quelques options, on voit qu'il est clairement possible de créer un environnement extrêmement restreint avec des règles très granulaire. Et la liste est loin d'être exhaustive.
 
-### Utilisateurs applicatifs ?
+### Gestion des utilisateurs
+On trouve sur internet pas mal de confusion autour de ce sujet. Let's clarify.
+
+#### Interroger le socket UNIX
+Le premier utilisateur auquel nous sommes confrontés est celui (ou ceux) qui est autorisé à taper sur le socket UNIX, situé par défaut à `/var/run/docker.sock`. Par défaut aussi, seul `root` est autorisé à communiquer avec le démon Docker *via* ce socket dédié.  
+Il est possible d'ajouter des utilisateurs au groupe `docker` afin qu'ils puissent directement utiliser le socket, sans avoir besoin des droits de `root` (en utilisant `sudo` par exemple). **Sans configuration supplémentaire, un tel utilisateur est tout simplement root sur la machine**. En effet, il lui suffira de monter le répertoire racine de l'hôte dans le conteneur afin d'avoir, par exemple, accès à tout le système de fichiers de l'hôte en lecture/écriture.  
+
+
+
+
+#### Lancement des conteneurs
+
+#### Utilisateurs applicatifs ?
 
 C'est une question discutable.   
 
-Il est certain qu'avec une bonne configuration (en particulier du kernel, avec seccomp, SELinux, etc) et éventuellement un remap de l'utilisateur qui lance les conteneurs (``--userns-remap`` ), un utilisateur applicatif n'a **aucune** utilité en soi. En effet, dans l'exemple qui suit, il est apparaît clairement que SELinux **seul** peut empêcher un utilisateur `root` dans un conteneur de prendre le contrôle de l'hôte, même en ayant accès à tout le filesystem, et même si les processus Docker sont lancés avec `root` sur l'hôte :
+Il est certain qu'avec une bonne configuration (en particulier du kernel, avec seccomp, SELinux, etc) et éventuellement un remap de l'utilisateur qui lance les conteneurs (``--user`` ), un utilisateur applicatif n'a **aucune** utilité en soi. En effet, dans l'exemple qui suit, il est apparaît clairement que SELinux **seul** peut empêcher un utilisateur `root` dans un conteneur de prendre le contrôle de l'hôte, même en ayant accès à tout le filesystem, et même si les processus Docker sont lancés avec `root` sur l'hôte :
 
 ![](https://github.com/It4lik/markdownResources/blob/master/dockerSecurity/pics/mitigating-attack-surface-with-SELinux.gif)
 
@@ -389,13 +405,13 @@ Nous ne parlons pas dans ce passage de plus grandes restrictions avec d'autres t
 ## Discussion autour des systèmes d'orchestration de conteneurs
 ### Plus grande exposition des vulnérabilités
 En utilisant un système d'orchestration de conteneurs, il est récurrent d'utiliser des politiques de HA et de redémarrage des services.
-Il sera par exemple possible de demander au système de remonter un conteneur qui serait amené à être indisponible. Les raisons de son indisponibilité sont multiples : lui même a coupé (dépassement de ressources, bug, etc) ou encore l'hôte s'est coupé.
-Dans le cas où l'hôte se coupe, on voit souvent des politiques qui visent à reprogrammer le conteneur sur un autre noeud.
-Si ce conteneur expose un service vulnérable, et répresente donc une faille de sécurité, qui peut amener l'attaquant à pénétrer dans le système hôte, alors toutes las machines du cluster sont compromises (une vulnérabilité kernel pourrait remplir ces conditions).
+Il sera par exemple possible de demander au système de remonter un conteneur qui serait amené à être indisponible. Les raisons de cette indisponibilité peuvent se révéler très diverses : lui même a coupé (dépassement de ressources, bug, etc), l'hôte s'est coupé, etc.  
+Dans le cas où l'hôte se coupe, on voit souvent des politiques qui visent à reprogrammer le conteneur sur un autre noeud.   
+Si ce conteneur expose un service vulnérable, et répresente donc une faille de sécurité, qui peut amener un attaquant à pénétrer dans le système hôte, alors toutes les machines du cluster pourront potentiellement être compromises (une vulnérabilité kernel pourrait remplir ces conditions).
 
 Il est donc important de garder à l'esprit que toutes les machines membres d'un cluster d'orchestration sont à considérer de manière équivalente en terme de sécurité. Si l'une est compromise il est à parier qu'une bonne partie du reste des machines le soit aussi.
 
-**Même avec un framework d'orchestration, il reste impératif de cloisônner au moins en terme de réseau les différentes applications & les différents clusters.**
+**Même** (surtout ?) **avec un framework d'orchestration, il reste impératif de cloisônner au moins en terme de réseau les différentes applications & les différents clusters.**
 
 ## Le réseau dans Docker
 
