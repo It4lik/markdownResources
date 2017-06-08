@@ -172,6 +172,7 @@ Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
   * ici on pense aux différents éléments de type pipes, socket, RAM partagée, queues, bus (notamment `d-bus`), etc
 * ***utilisateurs*** (ou user)
   * gère users & groups
+  * n'est pas utilisé par Docker dans la configuration par défaut
 * ***processus*** (ou plus exactement, PID)
   * arborescence de processus
   * `ps` va retourne des informations du `ns` PID courant
@@ -640,3 +641,5 @@ Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut 
 - Les configurations rédibitoires
 - use cases/particularités
 - construction d'images
+- relire
+- réseau
