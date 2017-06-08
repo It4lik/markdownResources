@@ -630,7 +630,9 @@ Pour ce faire, il suffit d'analyser les Dockerfiles, qui, une fois de plus, cont
 
 ## Les configurations rédibitoires (mauvaises pratiques)
 ### `--privileged` flag
-Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut être utile à des fins de tests (lancer des conteneurs depuis un conteneur en montant le socker UNIX où écoute le démon Docker par exemple), mais est à oublier le cas échéant. En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur et lui permet de bypasser les limites imposées par le cgroup `devices` (libre utilisation des special files, et donc du binaire `mknod`).
+Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut être utile à des fins de tests (lancer des conteneurs depuis un conteneur en montant le socket UNIX où écoute le démon Docker par exemple), mais est à oublier le cas échéant.   
+
+En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur et lui permet de bypasser les limites imposées par le cgroup `devices` (libre utilisation des special files, et donc du binaire `mknod`).
 
 
 # Cas d'utilisation et particularités
