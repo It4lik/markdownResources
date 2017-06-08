@@ -400,7 +400,7 @@ Malheureusement, dans ce cas de figure, l'utilisateur n'a quasiment aucune liber
 De façon générale, **il est impératif de n'autoriser que les utilisateurs de confiance à utiliser le socket où Docker écoute**, que ce soit socket UNIX ou TCP. **La meilleure façon de réduire la surface d'attaque du socket est d'utiliser un plugin d'uauthentification externe.**
 
 #### > Lancement des processus d'un conteneur
-Ici, on parle de l'utilisateur qui lancera **effectivement, sur l'hôte** les processus initié par les conteneurs.  
+Ici, on parle de l'utilisateur qui lancera **effectivement, sur l'hôte** les processus initiés par les conteneurs.  
 
 Il est important de comprendre qu'un conteneur n'est qu'un niveau d'isolation géré par le kernel. De ce fait, tout processus lancé dans un conteneur est visible sur l'hôte. Voyons un exemple :
 ```shell
@@ -416,8 +416,8 @@ root     11649  3480  0 09:32 ?        00:00:00 docker-containerd-shim a28e3d8da
 root     11660 11649  0 09:32 ?        00:00:00 sleep 40
 root     11689 10772  0 09:32 pts/1    00:00:00 grep --color=auto 11649
 ```
-Le processus `sleep` est parfaitement visible depuis l'hôte. Et on constate qu'il est lancé avec `root`. Tout autre processus lancé par ce conteneur apparaîtra comme un processus de `root` en dehors du conteneur.  
-Il est possible de modifier ce comportement à l'aide de l'option `--user` :(cette option prend en argument l'ID de l'utilisateur voulu) :
+Le processus `sleep` est parfaitement visible depuis l'hôte. Et on constate qu'**il est lancé avec `root` sur l'hôte**. Tout autre processus lancé par ce conteneur apparaîtra comme un processus de `root` en dehors du conteneur.  
+Il est possible de modifier ce comportement à l'aide de l'option `--user` (cette option prend en argument l'ID de l'utilisateur voulu) :
 ```shell
 [root@docker-host ~]$ docker run -d --user 1000 alpine sleep 40
 dcb38179b7d7e34477c53eed602e65018796f42a9a4f6b3509265e05a8335f26
@@ -431,7 +431,7 @@ root     11902  3480  0 09:35 ?        00:00:00 docker-containerd-shim dcb38179b
 it4      11913 11902  0 09:35 ?        00:00:00 sleep 40
 root     11936 10772  0 09:36 pts/1    00:00:00 grep --color=auto 11902
 ```
-Ici, on voit clairement que le processus `sleep` est désormais lancé par l'utilisateur `it4` sur l'hôte. En revanche, le conteneur lui-même est toujours lancé par `root` (c'est la ligne avec le processus `docker-containerd-shim`).
+**Ici, on voit clairement que le processus `sleep` est désormais lancé par l'utilisateur `it4` sur l'hôte**. En revanche, le conteneur lui-même est toujours lancé par `root` (c'est la ligne avec le processus `docker-containerd-shim`).
 
 De plus, à l'intérieur du conteneur, c'est aussi l'`uid` de `it4` qui est utilisé. Sauf que, sans configuration contraire, `it4` n'existe pas dans le conteneur. On se retrouve alors avec un `uid` inconnu :
 ```shell
@@ -443,10 +443,10 @@ PID   USER     TIME   COMMAND
 #### > User namespace remapping
 Il est possible de positionner **sur le démon** l'option `--userns-remap` (binaire `dockerd`, on le modifie dans l'unité de service systemd).   
 Celle-ci va permettre d'exploiter les mécanismes de [`subuid`](http://man7.org/linux/man-pages/man5/subuid.5.html) et [`subgid`](http://man7.org/linux/man-pages/man5/subuid.5.html). Ceux-ci sont configurables dans des fichiers définissant quel utilisateur a le droit de manipuler quel autre utilisateur, ou plutôt quels autres `uid` et `gid` que les siens.   
-Ainsi, il est possible de définir des plages d'`uid` et `gid` -dans leurs fichiers respectifs- afin de définir les IDs qui pourront être utilisés par ces nouveaux utilisateurs. On utilise souvent l'argument `default` à cette option, qui a pour effet d'utiliser un utilisateur et un groupe qui portent le nom de `dockremap` (le changer est purement cosmétique).
-**Exemple : un utilisateur `root` dans le conteneur qui correspond à un autre utilisateur sur l'hôte.**
+Ainsi, il est possible de définir des plages d'`uid` et `gid` -dans leurs fichiers respectifs- afin de définir les IDs qui pourront être utilisés par ces nouveaux utilisateurs. On utilise souvent l'argument `default` à cette option, qui a pour effet d'utiliser un utilisateur et un groupe qui portent le nom de `dockremap` (le changer est purement cosmétique).  
 
-![](https://github.com/It4lik/markdownResources/blob/master/dockerSecurity/pics/mitigating-attack-surface-with-usernamespace-remapping.gif)
+
+**Exemple : un utilisateur `root` dans le conteneur qui correspond à un autre utilisateur sur l'hôte.**
 
 Vous pouvez même essayer de `-v /:/host`, l'utilisateur `root` est strictement impuissant.  
 
