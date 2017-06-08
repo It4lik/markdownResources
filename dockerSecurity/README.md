@@ -64,6 +64,10 @@ Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits
   * [Les conteneurs Docker](#sécurité-des-conteneurs-docker)
     * [Options lors du `docker run`](#les-options)
     * [Gestion des utilisateurs](#gestion-des-utilisateurs)
+      * [Qui communique avec le démon ?](#-communication-avec-le-démon-docker)
+      * [Qui lance les processus ?](#-lancement-des-processus)
+      * [Utilisation des namespaces de type `user`](#-user-namespace-remapping)
+      * [Utilisateurs applicatifs dans un conteneur ?](#-utilisateurs-applicatifs-)
   * [Discussion autour de l'orchestration](#discussion-autour-des-systèmes-dorchestration-de-conteneurs)
   * [Réseau : aperçu](#le-réseau-dans-docker)
   * [Stockage : aperçu](#le-stockage-et-la-sauvegarde-avec-docker)
@@ -380,7 +384,7 @@ Avec ces quelques options, on voit qu'il est clairement possible de créer un en
 
 ### Gestion des utilisateurs
 On trouve sur internet pas mal de confusion autour de ce sujet. Let's clarify.
-#### > Interroger le socket UNIX
+#### > Communication avec le démon Docker
 Le premier utilisateur auquel nous sommes confrontés est celui qui est autorisé à taper sur le socket UNIX, situé par défaut à `/var/run/docker.sock`. Par défaut aussi, seul `root` est autorisé à communiquer avec le démon Docker *via* ce socket dédié.  
 * Il est possible d'ajouter des utilisateurs au groupe `docker` afin qu'ils puissent directement utiliser le socket, sans avoir besoin des droits de `root` (en utilisant `sudo` par exemple).   
 **Sans configuration supplémentaire, un tel utilisateur est tout simplement root sur la machine**. C'est parfaitement équivalent à un `ALL=(ALL)   NOPASSWD: ALL` dans le fichier `sudoers`...   
@@ -399,7 +403,7 @@ Malheureusement, dans ce cas de figure, l'utilisateur n'a quasiment aucune liber
 
 De façon générale, **il est impératif de n'autoriser que les utilisateurs de confiance à utiliser le socket où Docker écoute**, que ce soit socket UNIX ou TCP. **La meilleure façon de réduire la surface d'attaque du socket est d'utiliser un plugin d'uauthentification externe.**
 
-#### > Lancement des processus d'un conteneur
+#### > Lancement des processus
 Ici, on parle de l'utilisateur qui lancera **effectivement, sur l'hôte** les processus initiés par les conteneurs.  
 
 Il est important de comprendre qu'un conteneur n'est qu'un niveau d'isolation géré par le kernel. De ce fait, tout processus lancé dans un conteneur est visible sur l'hôte. Voyons un exemple :
