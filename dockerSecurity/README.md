@@ -379,7 +379,7 @@ Avec ces quelques options, on voit qu'il est clairement possible de créer un en
 C'est une question discutable.   
 Il est certain qu'avec une bonne configuration (en particulier du kernel, avec seccomp, SELinux, etc) et éventuellement un remap de l'utilisateur qui lance les conteneurs (``--userns-remap`` ), un utilisateur applicatif n'a **aucune** utilité en soi. En effet, prenons plutôt l'exemple suivant :
 
-![](http://www.hostingpics.net/viewer.php?id=170012test.gif)
+![](https://github.com/It4lik/markdownResources/blob/master/dockerSecurity/pics/mitigating-attack-surface-with-SELinux.gif)
 
 
 ## Discussion autour des systèmes d'orchestration de conteneurs
@@ -544,4 +544,3 @@ Pour ce faire, il suffit d'analyser les Dockerfiles, qui, une fois de plus, cont
 - Les configurations rédibitoires
 - use cases/particularités
 - construction d'images
-
