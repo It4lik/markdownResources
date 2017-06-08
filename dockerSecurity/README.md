@@ -377,10 +377,14 @@ Avec ces quelques options, on voit qu'il est clairement possible de créer un en
 ### Utilisateurs applicatifs ?
 
 C'est une question discutable.   
-Il est certain qu'avec une bonne configuration (en particulier du kernel, avec seccomp, SELinux, etc) et éventuellement un remap de l'utilisateur qui lance les conteneurs (``--userns-remap`` ), un utilisateur applicatif n'a **aucune** utilité en soi. En effet, prenons plutôt l'exemple suivant :
+
+Il est certain qu'avec une bonne configuration (en particulier du kernel, avec seccomp, SELinux, etc) et éventuellement un remap de l'utilisateur qui lance les conteneurs (``--userns-remap`` ), un utilisateur applicatif n'a **aucune** utilité en soi. En effet, dans l'exemple qui suit, il est apparaît clairement que SELinux **seul** peut empêcher un utilisateur `root` dans un conteneur de prendre le contrôle de l'hôte, même en ayant accès à tout le filesystem, et même si les processus Docker sont lancés avec `root` sur l'hôte :
 
 ![](https://github.com/It4lik/markdownResources/blob/master/dockerSecurity/pics/mitigating-attack-surface-with-SELinux.gif)
 
+Nous ne parlons pas dans ce passage de plus grandes restrictions avec d'autres technologies (comme `seccomp`), mais il apparaît clait qu'avec une configuration robuste, les utilisateurs applicatifs dans les conteneurs sont inutiles.
+
+**Cependant**, on voit régulièrement les outils puissants mais complexes comme `SElinux` demeurer inutilisés. Ainsi, on préférera tout de même utiliser des utilisateurs applicatifs dans nos conteneurs. Cela ajoute une couche de compléxité, mais aussi de sécurité. *Disons que ça ne mange pas de pain...*
 
 ## Discussion autour des systèmes d'orchestration de conteneurs
 ### Plus grande exposition des vulnérabilités
@@ -534,6 +538,8 @@ Ce point est essentiel bien qu'évident. Il est impératif de garder ses contene
 Pour ce faire, il suffit d'analyser les Dockerfiles, qui, une fois de plus, contiennent l'application et son environnement.
 
 ## Les configurations rédibitoires (mauvaises pratiques)
+### `--privileged` flag
+Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut être utile à des fins de tests (lancer des conteneurs depuis un conteneur en montant le socker UNIX où écoute le démon Docker par exemple), mais est à oublier le cas échéant. En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur et lui permet de bypasser les limites imposées par le cgroup `devices` (libre utilisation des special files, et donc du binaire `mknod`).
 
 
 # Cas d'utilisation et particularités
