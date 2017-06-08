@@ -380,11 +380,12 @@ Avec ces quelques options, on voit qu'il est clairement possible de créer un en
 
 ### Gestion des utilisateurs
 On trouve sur internet pas mal de confusion autour de ce sujet. Let's clarify.
-#### Interroger le socket UNIX
-Le premier utilisateur auquel nous sommes confrontés est celui (ou ceux) qui est autorisé à taper sur le socket UNIX, situé par défaut à `/var/run/docker.sock`. Par défaut aussi, seul `root` est autorisé à communiquer avec le démon Docker *via* ce socket dédié.  
+#### > Interroger le socket UNIX
+Le premier utilisateur auquel nous sommes confrontés est celui qui est autorisé à taper sur le socket UNIX, situé par défaut à `/var/run/docker.sock`. Par défaut aussi, seul `root` est autorisé à communiquer avec le démon Docker *via* ce socket dédié.  
 * Il est possible d'ajouter des utilisateurs au groupe `docker` afin qu'ils puissent directement utiliser le socket, sans avoir besoin des droits de `root` (en utilisant `sudo` par exemple).   
-**Sans configuration supplémentaire, un tel utilisateur est tout simplement root sur la machine**. C'est parfaitement équivalent à un `ALL=(ALL)   NOPASSWD: ALL` dans le fichier `sudoers`... En effet, il lui suffira de monter le répertoire racine de l'hôte dans le conteneur afin d'avoir, par exemple, accès à tout le système de fichiers de l'hôte en lecture/écriture.  
-* Une des façons de procéder est d'utiliser `sudo` avec une configuration restrictive.  
+**Sans configuration supplémentaire, un tel utilisateur est tout simplement root sur la machine**. C'est parfaitement équivalent à un `ALL=(ALL)   NOPASSWD: ALL` dans le fichier `sudoers`...   
+En effet, il lui suffira de monter le répertoire racine de l'hôte dans le conteneur afin d'avoir, par exemple, accès à tout le système de fichiers de l'hôte en lecture/écriture.  
+* Une des façons de procéder pour protéger le socket est d'utiliser `sudo` avec une configuration restrictive.  
 Premièrement, il est impératif de déterminer quelles commandes `docker run` vos utilisateurs pourront passer. Dans l'exemple suivant, du fait de l'anatomie de la commande `docker run` (`docker run [OPTIONS] <image> [ENTRYPOINT]`), il est impossible de rajouter des arguments à cette commande :
 ```shell
 $ cat /usr/bin/restricted-alpine-docker
@@ -398,7 +399,7 @@ Malheureusement, dans ce cas de figure, l'utilisateur n'a quasiment aucune liber
 
 De façon générale, **il est impératif de n'autoriser que les utilisateurs de confiance à utiliser le socket où Docker écoute**, que ce soit socket UNIX ou TCP. **La meilleure façon de réduire la surface d'attaque du socket est d'utiliser un plugin d'uauthentification externe.**
 
-#### Lancement des processus d'un conteneur
+#### > Lancement des processus d'un conteneur
 Ici, on parle de l'utilisateur qui lancera **effectivement, sur l'hôte** les processus initié par les conteneurs.  
 
 Il est important de comprendre qu'un conteneur n'est qu'un niveau d'isolation géré par le kernel. De ce fait, tout processus lancé dans un conteneur est visible sur l'hôte. Voyons un exemple :
@@ -439,7 +440,7 @@ PID   USER     TIME   COMMAND
     1 1000       0:00 sleep 9999
     7 1000       0:00 ps -ef
 ```
-#### User namespace remapping
+#### > User namespace remapping
 Il est possible de positionner **sur le démon** l'option `--userns-remap` (binaire `dockerd`, on le modifie dans l'unité de service systemd).   
 Celle-ci va permettre d'exploiter les mécanismes de [`subuid`](http://man7.org/linux/man-pages/man5/subuid.5.html) et [`subgid`](http://man7.org/linux/man-pages/man5/subuid.5.html). Ceux-ci sont configurables dans des fichiers définissant quel utilisateur a le droit de manipuler quel autre utilisateur, ou plutôt quels autres `uid` et `gid` que les siens.   
 Ainsi, il est possible de définir des plages d'`uid` et `gid` -dans leurs fichiers respectifs- afin de définir les IDs qui pourront être utilisés par ces nouveaux utilisateurs. On utilise souvent l'argument `default` à cette option, qui a pour effet d'utiliser un utilisateur et un groupe qui portent le nom de `dockremap` (le changer est purement cosmétique).
@@ -453,7 +454,7 @@ Vous pouvez même essayer de `-v /:/host`, l'utilisateur `root` est strictement 
 
 **NB2: A l'heure de l'écriture de cet article, il peut s'apparenter à un cauchemar** -pour les utilisateurs non-familiers avec cette ribambelle de technos- **de faire fonctionner cette configuration de concert avec SELinux d'activé**. Pour les utilisateurs de RHEL, reportez-vous notamment à [ce ticket](https://github.com/opencontainers/runc/pull/959) qui explique que le support complet ne sera pas apporté avant la version 7.4.
 
-#### Utilisateurs applicatifs ?
+#### > Utilisateurs applicatifs ?
 
 Enfin, nous parlerons ici de la création d'un utilisateur **à l'intérieur du conteneur**, afin de l'utiliser pour faire tourner nos services. En somme, c'est la politique habituelle, celle quifait utiliser `www-data` pour faire tourner le serveur web Apache. Pour les conteneurs, c'est une question discutable...   
 
