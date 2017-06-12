@@ -127,7 +127,7 @@ L'OCI est un projet de la Linux Foundation, s'inscrivant dans cette mouvance glo
 
 L'OCI propose donc des spécifications, des standards : pour les images de conteneurs, ou encore pour l'engine lui-même. Pour le runtime, on trouve par exemple la spécification [ici](https://github.com/opencontainers/runtime-spec) et son implémentation libre et open-source [ici](https://github.com/opencontainers/runc). L'implémentation porte le nom de ```runc``` et c'est désomais le runtime utilisé notamment par Docker. **Docker n'est plus, vive Docker.**
 
-A noter que le projet est soutenu par de grands acteurs parmis lesquels Microsoft, IBM, Huawei, EMC, Docker, Dell, Google, HP, Goldman Sachs (je peux pas m'empêcher de le citer...), Twitter, RedHat, etc.
+A noter que le projet est soutenu par de grands acteurs parmis lesquels Microsoft, IBM, Huawei, EMC, Docker, Dell, Google, HP, Goldman Sachs (hum hum...), Twitter, RedHat, etc.
 
 Ceci est déterminant pour l'avenir de la conteneurisation. En effet, le développement de la conteneurisation au sens large, est désormais encadré par une fondation qui est (à priori...) la plus indépendante possible d'autres organismes et acteurs majeurs du milieu informatique. Mais tout en bénéficiant de leur soutien : le projet n'est donc pas mené de manière isolée, et il ne sera pas le fruit de la volonté d'une unique entité  pour servir ses intérêts.
 
@@ -173,6 +173,7 @@ Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
 * ***utilisateurs*** (ou user)
   * gère users & groups
   * n'est pas utilisé par Docker dans la configuration par défaut
+  * **par défaut, il n'est pas utilisé par Docker : son implémentation n'est qu'à un stade expérimental dans les kernels récents, au moment de l'écriture de ce rapport**. Il est possible de les utiliser malgré tout en activant cette fonctionnalité kernel au boot, voir [le paragraphe dédié](https://github.com/It4lik/markdownResources/tree/master/dockerSecurity#-user-namespace-remapping) pour plus d'informations.
 * ***processus*** (ou plus exactement, PID)
   * arborescence de processus
   * `ps` va retourne des informations du `ns` PID courant
@@ -191,7 +192,7 @@ On en en trouve un certain nombre (dépend du système, on en trouve souvent + d
 * ***CAP_NET_ADMIN*** : permet de modifier les tables de routage, les règles de proxying, la possibilité de multicast, etc.
 * ***CAP_NET_BIND_SERVICE*** : permet d'écouter sur un port en dessous de 1024
 
-On reconnaît ici les superpouvoirs de `root`. Il est possible de visualiser les capabilities de chacun des processus avec le binaire ```lscap``` rarement présent par défaut (quelque soit la distrib).
+On reconnaît ici les superpouvoirs de `root`. Il est possible de visualiser les capabilities de chacun des processus lancés sur le système avec le binaire ```lscap``` rarement présent par défaut (quelque soit la distrib).
 
 A l'instar de n'importe quel autre processus du sysème, un conteneur se voit attribuer un certain nombre de capabilities. Il est possible lors du lancement d'un conteneur (`docker run`) d'en ajouter (`--cap-add`) ou d'en supprimer (`--cap-drop`).
 
@@ -199,6 +200,15 @@ Une bonne façon de procéder lors du lancement d'un conteneur est de supprimer 
 ```shell
 $ docker run --cap-drop ALL --cap-add SYS_TIME --name whattimeisit alpine /bin/sh
 ```
+
+Les capabilities s'appliquent aussi aux binaires. On les manipule alors avec `setcap` et `getcap`. L'utilisation d'un setuid root est parfaitement équivalent à donner TOUTES les capabilities à ce binaire à l'aide de `setcap`.  
+ Une autre façon de le dire est que `setcap` permet de donner de façon granulaire les capabilities à un binaire.
+
+```shell
+$ getcap /usr/bin/ping
+/usr/bin/ping = cap_net_raw+ep
+```
+
 Extrait de la [documentation RedHat](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/docker_selinux_security_policy) : *"Capabilites constitute the heart of the isolation of containers. If you have used capabilites in the manner described in this guide, an attacker who does not have a kernel exploit will be able to do nothing even if they have root on your system."*
 
 ### netfilter
@@ -209,10 +219,10 @@ Le majeure partie des règles permettent :
 * de fermer certains ports
 
 ### Rentrons un peu dans le détail...
-#### Théorie : /proc et /sys
+#### > Théorie : /proc et /sys
 Avant de se pencher sur les différents drivers réseau et les différents cas d'utilisation auxquels ils répondent, par exemple, il est nécessaire de discuter un peu du fonctionnement du réseau pour un conteneur, ou en fait, plus globalement, pour une machine GNU/Linux.
 
-Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'occurrence, comme **la totalité des fonctionnalités élémentaires d'un système moderne** -des fonctionnalités comme le réseau- **sont gérées directement dans le kernelspace**. Des appels systèmes sont bien entendus à disposition pour pouvoir les manipuler. Mais en explorant les deux pseudo-filesystems que sont **/proc** et **/sys**, on peut obtenir énormément d'informations (en réalité, tout est là, donc c'est ici que l'on pourra obtenir le plus d'informations sur le réseau. Les commandes comme ``ip`` ou ``ifconfig`` ou des fichiers comme ``/etc/hostname`` ne font que piocher à un moment ou un autre dans ces données).
+Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'occurrence, comme **la totalité des fonctionnalités élémentaires d'un système moderne** -des fonctionnalités comme le réseau- **sont gérées dans le kernelspace**. Des appels systèmes sont bien entendus à disposition pour pouvoir les manipuler. Mais en explorant les deux pseudo-filesystems que sont **/proc** et **/sys**, on peut obtenir énormément d'informations (en réalité, tout est là, donc c'est ici que l'on pourra obtenir le plus d'informations sur le réseau. Les commandes comme ``ip`` ou ``ifconfig`` ou des fichiers comme ``/etc/hostname`` ne font que piocher à un moment ou un autre dans ces données).
 
 On a par exemple ``/sys/class/net`` qui contient un sous-répertoire par interface réseau de la machine (à l'intérieur se trouve un grand nombre de paramètres, contenus dans des fichiers).   
 Dans le cas de Docker, avec le driver réseau de base, chaque réseau Docker est en réalité une nouvelle interface bridge. Chaque conteneur créera alors une sous-interface de ce bridge, qui apparaîtra comme un sous-répertoire supplémentaire. Evidemment, il est impossible depuis le conteneur de voir d'autres interfaces que les siennes. Ceci, grâce aux namespaces.
@@ -241,9 +251,9 @@ lrwxrwxrwx 1 root root 0 16 mai   14:22 /proc/16392/ns/pid -> pid:[4026531836]
 
 Avec les éléments qu'on vient de voir, il devient apparent qu'on peut créer à la volée de nouvelles interfaces, et qu'il sera possible de totalement isoler le processus qui les utilisera.
 
-Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
+**TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
 
-#### Explorer les namespaces
+#### > Explorer les namespaces : `nsenter`
 
 Il est possible grâce à ``nsenter`` de rentrer littéralement dans un namespace et d'y exécuter du code. Il est par exemple possible d'exécuter un simple ``ps -ef`` en utilisant un namespace PID totalement isolé. Nous ne verrions alors que les processus de ce namespace.
 
@@ -279,7 +289,9 @@ root        73     0  0 13:03 ?        00:00:00 /bin/ps -ef
 
 **On voit que l'isolation de l'arborescence de PIDs est bien fournie par les namespaces.** Et qu'elle est efficace : on ne voit que les processus du conteneur en question. Pas ceux d'éventuels autres conteneurs ou de l'hôte.
 
-Il en va de même pour tous les autres namespaces. C'est plutôt fun/intéressant de se balader dans /proc et /sys de toute façon. Et il est parfaitement possible de créer un conteneur à la main à base de ``touch``, ``echo`` et ``mkdir`` !
+Il en va de même pour tous les autres namespaces. C'est plutôt fun/intéressant de se balader dans /proc et /sys de toute façon. Et il est parfaitement possible de créer un conteneur à la main à base de syscalls `clone()` ou `unshare()`.
+
+#### > Création de namespace : `unshare`
 
 # Questions récurrentes
 * **Est-ce qu'un conteneur est moins secure qu'une VM ?**
@@ -460,6 +472,10 @@ Avec une telle configuration, vous pouvez même essayer de `-v /:/host`, l'utili
 **NB1: il vous faudra activer le support du `namespace` de type `user` pour que ceci puisse fonctionner.** Sur les systèmes RHEL7/CentOS7, ce n'est qu'une feature en preview. Pour vérifier son activation c'est `/proc/cmdline`, l'option `user_namespace.enable=1` doit être positionné. Le cas échéant, reportez-vous [ici](https://github.com/procszoo/procszoo/wiki/How-to-enable-%22user%22-namespace-in-RHEL7-and-CentOS7%3F) pour plus d'informations.
 
 **NB2: A l'heure de l'écriture de cet article, il peut s'apparenter à un cauchemar** -pour les utilisateurs non-familiers avec cette ribambelle de technos- **de faire fonctionner cette configuration de concert avec SELinux d'activé**. Pour les utilisateurs de RHEL, reportez-vous notamment à [ce ticket](https://github.com/opencontainers/runc/pull/959) qui explique que le support complet ne sera pas apporté avant la version 7.4.
+
+**Important** : ceci est plus qu'un simple mapping d'utilisateur. En effet, à chaque user namespace son jeu d'utilisateurs, certes, mais aussi **son jeu de capabilities**. Les capabilities ont pour scope un user namespace (c'est d'ailleurs pour cette raison que l'implémentation du user namespace est bien plus complexe que les autres).   
+Enfin, il est impératif de garder à l'esprit que les namespaces de type user sont comme une structure arborescente, et que le root user namespace (*e.g.* le user namespace par défaut, celui dans lequel on se trouve tout le temps) a une visibilité totale sur les autres.
+
 
 #### > Utilisateurs applicatifs ?
 
