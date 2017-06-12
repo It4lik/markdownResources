@@ -652,6 +652,24 @@ En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur e
 
 # Cas d'utilisation et particularités
 
+# Limites de l'isolation de type Docker
+## Visualisation des ressources de l'hôte
+
+Du fait de certains mécanismes intrinsèquement liés au fonctionnement de Docker, il est possible de visualiser tout le pool de ressources (CPU, RAM, etc) même en cas de limitation de ces mêmes ressources.  
+Par exemple, pour la RAM :
+
+```shell
+$ free -m
+              total       utilisé      libre     partagé tamp/cache   disponible
+Mem:           7901        4788         935         866        2177        1990
+Partition d'échange:        2047           0        2047
+$ docker run -m 16M alpine free -m
+             total       used       free     shared    buffers     cached
+Mem:          7901       6974        926        861        444       1650
+-/+ buffers/cache:       4880       3021
+Swap:         2047          0       2047
+```
+
 
 
 # TODO
