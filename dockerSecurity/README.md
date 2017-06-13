@@ -252,7 +252,6 @@ Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'oc
 On a par exemple ``/sys/class/net`` qui contient un sous-répertoire par interface réseau de la machine (à l'intérieur se trouve un grand nombre de paramètres, contenus dans des fichiers).   
 Dans le cas de Docker, avec le driver réseau de base, chaque réseau Docker est en réalité une nouvelle interface bridge. Chaque conteneur créera alors une sous-interface de ce bridge, qui apparaîtra comme un sous-répertoire supplémentaire. Evidemment, il est impossible depuis le conteneur de voir d'autres interfaces que les siennes. Ceci, grâce aux namespaces.
 
-
 Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'informations mais principalement deux groupes d'entités :
 * des fichiers de configuration ou d'état du kernel. Par exemple :
   * ``/proc/cgroups`` affiche l'état des `cgroups` sur la machine
@@ -272,11 +271,7 @@ $ sudo ls  -al /proc/16392/ns/pid
 lrwxrwxrwx 1 root root 0 16 mai   14:22 /proc/16392/ns/pid -> pid:[4026531836]
 ```
 
-**Chacun des processus peut être lancé dans un namespace différent. Ce qui l'isole des autres processus**, s'ils se trouvent dans d'autres `namespaces`.
-
-Avec les éléments qu'on vient de voir, il devient apparent qu'on peut créer à la volée de nouvelles interfaces, et qu'il sera possible de totalement isoler le processus qui les utilisera.
-
-**TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
+**Chacun des processus peut être lancé dans un namespace `pid` différent. Ils feront alors partie d'une arborescence de processus différente.**
 
 #### > Explorer les namespaces : `nsenter`
 
@@ -361,17 +356,16 @@ L'API peut être exposée *via* deux technologies :
 ### Options du démon Docker
 Le démon docker (généralement géré à l'aide de ``systemd``) est lançable manuellement avec le binaire ``dockerd``. De nombreuses options sont à notre disposition, parmis lesquelles :
 * ``--icc`` : permet d'activer la communication inter-conteneur. **``true`` par défaut.**
-* ``--ip`` : permet de choisir l'adresse de l'hôte utilisée pour les forwardings de port. **Par défaut : 0.0.0.0**.
-* ``--user`` : permet de choisir quel utilisateur lancera les conteneurs. **Par défaut, c'est root**.
-* ``--userns`` : permet de choisir arbitrairement quel `user namespace` sera utilisé par le conteneur. Par défaut, un nouveau est créé à chaque `docker run`.
-
+* ``--ip`` : permet de choisir l'adresse de l'hôte utilisée pour les forwardings de port. **Par défaut : 0.0.0.0** (toutes les interfaces seront utilisées)
+* [``--userns-remap``](#-user-namespace-remapping) : permet de choisir arbitrairement quel `user namespace` sera utilisé par le conteneur, le tout en mappant les utilisateurs du nouveau namespace vers des utilisateurs du "root namespace" de type `user`. Par défaut, les namespaces `user` ne sont pas utilisés.
+* `--oom-score-adjust` : détermine le OOM score du processus `dockerd`. **-500 par défaut**
 
 Ces quelques options peuvent suffire à faire peur. Et leur paramétrage par défaut est caractéristique de "this is a feature, not a vuln". Ce ne serait que pure vulnérabilité si on ne pouvait pas modifier nous-mêmes ces paramètres.  
 Et je pense qu'ils ont raison de considérer ça comme une "feature". La sécurité par défaut **pourrait** en effet être renforcée. Mais une configuration très restrictive de cet outil, réalisée arbitrairement par les développeurs de Docker, engendrerait nécessairement un gros travail de configuration à tous les utilisateurs. Ce n'est pas un problème en soit, mais le travail serait effectivement énorme.   
 Or, dans beaucoup de cas on utilise Docker à des fins de tests, sur notre propre ordinateur. **Dans la plupart des cas, on attend juste de Docker qu'il fonctionne.** Ces choix sont donc compréhensibles. Pour une utilisation en production, tous ces éléments restent donc bien évidemment paramétrables.
 
 J'étais moi-même sceptique au départ, mais d'autres exemples viennent contrecarrer le sceptiscisme. Par exemple, SELinux est par défaut quasiment non configuré et trop restrictif sur les machines de type RedHat. Dans beaucoup de cas, les gens le désactivent simplement (ou le laissent afficher des warnings) alors qu'il constitue une brique extrêment robuste de la sécurité des systèmes RedHat. Résultat ? Il est inutilisé, bien qu'extrêmement puissant.
-Docker a fait le choix de désactiver ces options, pour satisfaire le plus grand nombre. Et il est possible de se le permettre car le public visé va, à 95% faire tourner Docker sur un ordinateur personnel (sans l'exposer vers l'extérieur, et n'attendant de Docker qu'une unique chose : qu'il fonctionne).
+Docker a fait le choix de désactiver ces options, pour satisfaire le plus grand nombre. Et il est possible de se le permettre car le public visé va, à 95% faire tourner Docker sur un ordinateur personnel à des fins de tests, POC, développement (e.g. sans l'exposer vers l'extérieur, et n'attendant de Docker qu'une unique chose : qu'il fonctionne).
 
 **Si ces sécurités sont désactivées par défaut, c'est effectivement une feature. L'introduction de cette feature est la conséquence du public visé par Docker.**
 
@@ -746,12 +740,15 @@ Même si utiliser Docker en production permet d'accéder à de nombreux avantage
 
 # TODO
 - Les configurations rédibitoires
+  - compléter
 - use cases
   - compléter
 - limites
-  - prod ? mmmh...
+  - prod ?  compléter
 - construction d'images
   - maintenir (no latest) etc
 - relire
 - réseau
   - exemple IPVLAN/MACVLAN (gif)
+- standards
+  - **TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
