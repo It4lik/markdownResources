@@ -82,15 +82,12 @@ Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits
       * [SELinux](#selinux)
       * [AppArmor](#apparmor)
       * [Seccomp](#seccomp)
-  * [Limites de l'isolation](#limites-de-lisolation-de-type-docker)
-    * [Visualisaiton des ressources de l'hôte](#visualisation-des-ressources-de-lhôte)
-
-
+  * [Quelques limites de Docker](#limites-de-docker)
 
 
 # Sources
-Mes sources sont très nombreuses, et une grande partie de ce document a été rédigé d'une traite.
-La majeure partie des informations trouvables dans ce document se trouvent dans les référentiels suivant :
+Mes sources sont nombreuses, et une grande partie de ce document a été rédigé d'une traite.
+La majeure partie des informations trouvables dans ce document se trouvent dans les référentiels suivants :
 * [The Linux Documentation Project](http://www.tldp.org/)
 * [Documentation Red Hat](https://access.redhat.com/documentation/en/red-hat-enterprise-linux/)
   - [Red Hat Container Security Guide](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/)
@@ -438,14 +435,14 @@ La commande ``docker run`` possède d'innombrables options. Seule une infime par
 * ``--hostname`` : permet de spécifier arbitrairement un nom d'hôte pour la machine
 * ``-v`` : permet d'utiliser des volumes Docker
 
-Cependant on trouve aussi un grand nombre d'options auxquelles il est **nécessaire** de s'intéresse afin d'appréhender la sécurité d'un conteneur. Parmi celles-ci, on a :
+Cependant on trouve aussi un grand nombre d'options auxquelles il est **nécessaire** de s'intéresser afin d'appréhender la sécurité d'un conteneur. Parmi celles-ci, on a :
 * ``--cap-drop`` qui permet de supprimer des capabilities au conteneur lancé
   * pour rappel : de chaque conteneur lancé avec ``docker run`` résultera un **unique** processus. C'est donc ce processus qui se verra supprimer des capabilities.
 * politiques de restriction d'accès aux ressources à l'aide des cgroups. Beaucoup d'options en relation avec ce point :
   * ``blkio-weight`` : priorisation des accès disque, possibilité de désactiver l'écriture sur le disque avec une valeur nulle
   * ``--cpus-quota`` et ``--cpu-period`` permettent d'agir sur le CFS du processeur
   * ``--memory`` : limitation de la quantité de RAM utilisée
-  * ``--tmps`` : monte un système de fichier temporaire au path indiqué
+  * ``--tmps`` : monte un système de fichier temporaire en RAM ([`tmpfs`](http://man7.org/linux/man-pages/man5/tmpfs.5.html) au path indiqué
   * ``--pids-limit`` : permet de limiter le nombre d'ID de processus disponible
 
 Avec ces quelques options, on voit qu'il est clairement possible de créer un environnement extrêmement restreint avec des règles très granulaire. Et la liste est loin d'être exhaustive.
@@ -703,6 +700,18 @@ Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut 
 
 En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur et lui permet de bypasser les limites imposées par le cgroup `devices` (libre utilisation des special files, et donc du binaire `mknod`).
 
+### Un conteneur = un processus
+Il est parfaitement possible de s'amuser à effectuer toute une batterie de tests dans des conteneurs. Cependant, pour une utilisation en production, **chaque conteneur ne doit lancer qu'un seul et unique processus.** Celui-ci est contenu dans la clause `ENTRYPOINT` du Dockerfile.  
+
+Cela peut paraître désuet mais c'est en réalité **primordial** pour une utilisation robuste des conteneurs. En adoptant ce concept, on facilite l'interopérabilité de nos conteneurs, leur capacité d'adaptation, tout en accroissant sa légèreté et donc sa portabilité.
+
+### Hébergement de données
+Par "donnée", on entend ici tout ce qui n'est pas ni l'application, ni son environnement.  
+
+Les conteneurs sont éphémères. Toute donnée se trouvant dans un conteneur est vouée à disparaître. **Les données doivent être hébergées dans des volumes dédiés** afin d'accéder à de la persistance de données et un plus haut niveau de qualité/sécurité.
+
+### Credentials
+Ne stocker aucun identifiant dans un conteneur. Pour faire passer des identifiants dans un conteneur, on utilise souvent les variables d'environnement. Il est aussi conseillé de penser à des technologies comme [JWT](https://jwt.io/) afin de proposer de l'authentification.
 
 # Cas d'utilisation et particularités
 Nous n'allons pas ici détailler précisément les cas d'utilisation de Docker mais plutôt essayer de les classer dans de grandes catégories.
@@ -728,7 +737,7 @@ Nous n'allons pas ici détailler précisément les cas d'utilisation de Docker m
   * micro-services
   * Infrastructure-as-code (IAC)
 
-# Limites de l'isolation de type Docker
+# Limites de Docker
 ## Visualisation des ressources de l'hôte
 
 Du fait de certains mécanismes intrinsèquement liés au fonctionnement de Docker, il est possible de visualiser tout le pool de ressources (CPU, RAM, etc) même en cas de limitation de ces mêmes ressources.  
@@ -767,3 +776,4 @@ Même si utiliser Docker en production permet d'accéder à de nombreux avantage
   - exemple IPVLAN/MACVLAN (gif)
 - standards
   - **TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
+- docker compose ? 
