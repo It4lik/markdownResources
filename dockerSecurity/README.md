@@ -677,6 +677,10 @@ Swap:         2047          0       2047
 # TODO
 - Les configurations rédibitoires
 - use cases/particularités
+- limites
+  - prod ? mmmh...
 - construction d'images
+  - maintenir (no latest) etc
 - relire
 - réseau
+  - exemple IPVLAN/MACVLAN (gif)
