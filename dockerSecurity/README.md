@@ -694,7 +694,7 @@ Pour que l'engine Docker puisse utiliser `seccomp` il est impératif que le kern
 Ce point est essentiel bien qu'évident. Il est impératif de garder ses conteneurs à jour... comme tout autre élément d'un parc (matériel ou logiciel).
 Pour ce faire, il suffit d'analyser les Dockerfiles, qui, une fois de plus, contiennent l'application et son environnement.
 
-## Les configurations rédibitoires (mauvaises pratiques)
+## Les configurations rédibitoires (*ou mauvaises pratiques*)
 ### `--privileged` flag
 Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut être utile à des fins de tests (lancer des conteneurs depuis un conteneur en montant le socket UNIX où écoute le démon Docker par exemple), mais est à oublier le cas échéant.   
 
@@ -776,4 +776,4 @@ Même si utiliser Docker en production permet d'accéder à de nombreux avantage
   - exemple IPVLAN/MACVLAN (gif)
 - standards
   - **TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
-- docker compose ? 
+- docker compose ?
