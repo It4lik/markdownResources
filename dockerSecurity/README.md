@@ -333,12 +333,12 @@ Docker a fait le choix de désactiver ces options, pour satisfaire le plus grand
 ## Sécurité des hôtes Docker
 **Nous parlons ici des hôtes Docker "standalone"** : les hôtes qui ne sont PAS membres d'un quelconque framework d'orchestration (un point y sera dédié).
 De fait les hôtes Docker sont très souvent des machines virtuelles.  
-e plus, il est recommandé d'en utiliser pour bénéficier de tous les avantages qu'elles apportent (sur lesquels nous ne nous attarderons pas ici). Etant une machine virtuelle, l'hôte Docker se soumet aux règles habituelles concernant les machines virtuelles. Nous n'en allons pas en dresser une liste exhaustive, mais voici certaines des grandes lignes :
+De plus, il est recommandé d'en utiliser pour bénéficier de tous les avantages qu'elles apportent (sur lesquels nous ne nous attarderons pas ici). Etant une machine virtuelle, l'hôte Docker se soumet aux règles habituelles concernant les machines virtuelles. Nous n'en allons pas en dresser une liste exhaustive, mais voici certaines des grandes lignes :
 * **Tout hôte faisant tourner Docker, ne fait tourner que Docker.**
   * à l'image d'un serveur Web qui n'a qu'un serveur web (et une base de données, éventuellement)
   * on peut imaginer avoir les sondes de monitoring ou autres qui subsistent encore sur le système de l'hôte.
 * **On ne mélange pas des services qui ont différents niveaux de sensibilité, différentes surfaces d'attaque, etc.**
-  * un hôte fait tourner une unique application (nsouvent n-tiers) conteneurisée
+  * un hôte fait tourner une unique application (souvent n-tiers) conteneurisée
   * tous les hôtes dans le même sous-réseau exposent des services de sensibilité équivalente
 * **Les hôtes possèdent un utilisateur UNIX dédié au lancement de conteneur avec une configuraton extrêmement restrictive**
 * On peut imaginer un tas d'autres mesures visant à augmenter le niveau de sécurité d'un hôte Docker :
@@ -415,7 +415,7 @@ user1        ALL=(ALL)       NOPASSWD: /usr/bin/restricted-alpine-docker
 Malheureusement, dans ce cas de figure, l'utilisateur n'a quasiment aucune liberté (impossibilité de changer d'image ou d'exposer un port).
 * **L'unique solution valable** est d'utiliser un plugin d'authentification. Ceux-ci permettent en effet à chaque interrogation du socket de vérifier l'identité de l'utilisateur, et surtout, de vérifier qu'il a le droit d'exécuter l'action demandée. L'un des plus connus est [authz](https://github.com/twistlock/authz).
 
-De façon générale, **il est impératif de n'autoriser que les utilisateurs de confiance à utiliser le socket où Docker écoute**, que ce soit socket UNIX ou TCP. **La meilleure façon de réduire la surface d'attaque du socket est d'utiliser un plugin d'uauthentification externe.**
+De façon générale, **il est impératif de n'autoriser que les utilisateurs de confiance à utiliser le socket où Docker écoute**, que ce soit socket UNIX ou TCP. **La meilleure façon de réduire la surface d'attaque du socket est d'utiliser un plugin d'authentification externe.**
 
 #### > Lancement des processus
 Ici, on parle de l'utilisateur qui lancera **effectivement, sur l'hôte** les processus initiés par les conteneurs.  
