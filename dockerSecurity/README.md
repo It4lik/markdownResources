@@ -82,6 +82,7 @@ Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits
       * [SELinux](#selinux)
       * [AppArmor](#apparmor)
       * [Seccomp](#seccomp)
+  * [Mauvaises pratiques](#les-configurations-rédibitoires-ou-mauvaises-pratiques)
   * [Quelques limites de Docker](#limites-de-docker)
 
 
@@ -395,7 +396,7 @@ Elles sont le résultat de la commande ``docker build`` sur un Dockerfile. Il es
 
 Un Dockerfile contient **obligatoirement** l'instruction ``FROM`` en tout début de fichier (il est lu de haut vers le bas lors du build). C'est l'image de départ, sur laquelle nous allons rajouter de la configuration. Il est possible de partir d'une image existante, ou d'une pseudo-image qui porte bien son nom : ``scratch`` (le Dockerfile commence donc par ``FROM scratch``. Pas besoin d'explications supplémentaires).
 
-### Le *Registre Docker*
+### Le *Hub Docker*
 Un applicatif, le *Registre Docker*, permet d'héberger des images. On les récupère avec ``docker pull`` et on les envoie sur le *Registre Docker* avec ``docker push``.
 
 Il existe un *Registre Docker* public, appelé [Docker Hub](https://hub.docker.com/), il est le *Registre Docker* ciblé par défaut par les commandes ``docker push`` et ``docker pull``.
@@ -408,7 +409,19 @@ En résumé, les images dignes de confiance sont :
 * les images développées en interne, ``FROM scratch``
 * les images basées sur des images développées en interne
 
-On peut éventuellement accorder dde la confiance à d'autres éditeurs, dont les dépôts ne sont pas dans *library* (par exemple, [vmware](https://hub.docker.com/u/vmware/)).
+On peut éventuellement accorder de la confiance à d'autres éditeurs, dont les dépôts ne sont pas dans *library* (par exemple, [vmware](https://hub.docker.com/u/vmware/)).
+
+### Un *Registre Docker* interne ?
+En effet, l'utilisation d'un *Registre Docker* est le seul et unique moyen de stocker, partager et gérer des images avec sécurité, qualité et granularité :
+* les images sont centralisées sur des noeuds dédiés
+* tous les hôtes Docker peuvent récupérer les images sur un *Registre Docker* interne (inutile de toutes les stocker en local donc)
+* possibilité de conserver une archive des images poussées
+* facilité pour effectuer des sauvegardes des images sans connexions aux hôtes Docker
+* confiance totale en ce registre interne pour la sécurité (disponibilité, confidentialité, authentification)
+* beaucoup d'implémentations du *Registre Docker* permettent :
+  * de visualiser le contenu du *Registre Docker* à l'aide d'une UI dédiée
+  * gérer des utilisateurs, des groupes, et des permissions
+  * d'autres fonctionnalités ([réplication d'images](https://github.com/vmware/harbor/blob/master/docs/user_guide.md#replicating-images), [émission de jetons applicatifs](http://port.us.org/features/application_tokens.html), couplage à une backend LDAP pour l'auth, etc)
 
 ### Construction d'images
 #### > Clause `FROM`
@@ -425,7 +438,7 @@ Lorsque l'on stocke un grand nombre d'images il est donc préférable de penser 
 #### > Maintien des images
 Il est **impératif** de maintenir ses images. De la même façon qu'il est nécessaire de maintenir toutes autres applications packagée autrement. Tout vient d'être dit : une fois packagé, un package (image Docker ou autres) est immuable : il faut le ré-éditer afin de le mettre à jour.  
 
-Afin de les garder à jour, il n'est nécessaire que d'éditer le Dockerfile dont les images ont été issues.
+Afin de garder des images à jour, il n'est nécessaire que d'éditer le Dockerfile dont ces images ont été issues, puis de réitérer la phase de `docker build` afin de ré-éditer l'image.
 
 ## Sécurité des conteneurs Docker
 Ici, on fait clairement référence au lancement **d'un** conteneur, à partir d'une image, à l'aide de la commande ``docker run``.
@@ -690,10 +703,6 @@ Dans le cadre du projet Moby, [un fichier JSON de référence](https://github.co
 
 Pour que l'engine Docker puisse utiliser `seccomp` il est impératif que le kernel dont il est question soit configuré avec l'option `CONFIG_SECCOMP` activée et Docker lui-même doit avoir été compilé avec `seccomp`. Dans ce cas-là, plusieurs appels système sont bloqués par défaut (se référer à )
 
-## Maintenir à jour ses conteneurs...
-Ce point est essentiel bien qu'évident. Il est impératif de garder ses conteneurs à jour... comme tout autre élément d'un parc (matériel ou logiciel).
-Pour ce faire, il suffit d'analyser les Dockerfiles, qui, une fois de plus, contiennent l'application et son environnement.
-
 ## Les configurations rédibitoires (*ou mauvaises pratiques*)
 ### `--privileged` flag
 Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut être utile à des fins de tests (lancer des conteneurs depuis un conteneur en montant le socket UNIX où écoute le démon Docker par exemple), mais est à oublier le cas échéant.   
@@ -703,7 +712,7 @@ En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur e
 ### Un conteneur = un processus
 Il est parfaitement possible de s'amuser à effectuer toute une batterie de tests dans des conteneurs. Cependant, pour une utilisation en production, **chaque conteneur ne doit lancer qu'un seul et unique processus.** Celui-ci est contenu dans la clause `ENTRYPOINT` du Dockerfile.  
 
-Cela peut paraître désuet mais c'est en réalité **primordial** pour une utilisation robuste des conteneurs. En adoptant ce concept, on facilite l'interopérabilité de nos conteneurs, leur capacité d'adaptation, tout en accroissant sa légèreté et donc sa portabilité.
+Cela peut paraître désuet mais c'est en réalité **primordial** pour une utilisation robuste des conteneurs. En adoptant ce concept, on facilite l'interopérabilité de nos conteneurs, leur capacité d'adaptation, tout en accroissant leur légèreté et donc leur portabilité.
 
 ### Hébergement de données
 Par "donnée", on entend ici tout ce qui n'est pas ni l'application, ni son environnement.  
