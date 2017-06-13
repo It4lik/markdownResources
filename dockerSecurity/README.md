@@ -185,6 +185,8 @@ Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
 
 Le noyau est par exemple capable de gérer deux arborescences de processus totalement indépendantes.
 
+**NB:** même si tous les namespaces portent le nom de "namespace", ils ont TOUS un fonctionnement différent. Dans l'idée, ils servent bel et bien tous à isoler un jeu de ressources d'un autre, du même type, aux yeux du système. Cependant, par exemple, les namespaces `user` (doit inclure une gestion des capabilities par namespaces) et `mount` (inclut des mécanismes de scopes et de propagation des points de montage) ont un fonctionnement qui diffèrent beaucoup des autres.  
+
 ### capabilities
 **Les capabilities Linux sont les droits avec lesquels un processus est lancé.** `root` n'est pas un utilisateur magique. `root` n'a pas tous les droits. `root` est simplement un utilisateur qui a le pouvoir de lancer n'importe quel processus avec n'importe quelle capability.
 On en en trouve un certain nombre (dépend du système, on en trouve souvent + de 35). Parmi lesquelles on a par exemple :
@@ -293,7 +295,29 @@ root        73     0  0 13:03 ?        00:00:00 /bin/ps -ef
 
 Il en va de même pour tous les autres namespaces. C'est plutôt fun/intéressant de se balader dans /proc et /sys de toute façon. Et il est parfaitement possible de créer un conteneur à la main à base de syscalls `clone()` ou `unshare()`.
 
-#### > Création de namespace : `unshare`
+#### > Création de namespaces : `unshare`
+
+Il existe un appel système qui porte le même nom : `unshare()`. Ce dernier permet tout simplement de créer de toutes pièces un nouveau namespace, d'un type particulier. La binaire `unshare` utilise cet appel système et nous permet de lancer des processus dans de nouveaux namespaces. A noter qu'il est aussi possible de l'utiliser pour lancer des processus dans des namespaces existants.
+
+Les options de `unshare` permettent de choisir le type de namespace(s) que l'on va créer à la volée. Un des exemples les plus simples est de lancer un `bash` dans un namespace de type `net` (réseau). Par défaut, un namespace `net` vierge ne contient qu'une unique interface : la loopback.
+```shell
+$ unshare -n bash
+$ ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+```
+
+Il est possible de quasiment créer un conteneur, tel que Docker le fait, en une unique commande `unshare` :
+```shell
+$ ps -ef
+UID        PID  PPID  C STIME TTY          TIME CMD
+root         1     0  0 18:18 pts/0    00:00:00 bash
+root         2     1  0 18:18 pts/0    00:00:00 ps -ef
+$ ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+```
+Congratz, you basically just created a container. 
 
 # Questions récurrentes
 * **Est-ce qu'un conteneur est moins secure qu'une VM ?**
@@ -565,6 +589,8 @@ Il est possible d'utiliser plusieurs types de volumes, pour cela, Docker propose
 
 A noter que dans l'ensemble des cas, il serait potentiellement possible d'utiliser l'espace de stockage voulu sur l'hôte puis de le monter localement grâce à la gestion native des volumes. Cependant, l'impact en terme de performances serait énorme, on préférera se connecter "directement" aux diverses cibles de stockage *via* un plugin dédié. D'autres problématiques sont soulevées en cas de non-utilisation des plugins, nous ne les traiterons donc pas ici car il est très largement préférable de les utiliser.
 
+**NB:** de la même façon qu'il est impossible de monter deux targets de stockage sur un même point de montage, il est impossible de monter deux volumes (locaux ou distants) sur le même répertoire d'un conteneur.
+
 ### Gestion des volumes au sein d'un framework d'orchestration
 Les différents frameworks d'orchestration proposent chacun une façon de gérer les volumes utilisés par les conteneurs. En effet, dans le cas de l'utilisation d'orchestration, le problème est différent. On ne cherche plus seulement à rendre persistent le stockage à travers des redémarrages, mais aussi consistant à travers le temps et partagé entre les différents hôtes du cluster.
 
@@ -605,7 +631,7 @@ Il existe désormais [un aperçu](https://docs.docker.com/notary/getting_started
 
 Il existe deux moyens de s'en servir :
 - manuellement : utilisation d'un outil comme [`clairctl`](https://github.com/jgsqware/clairctl) qui permet de manuellement soumettre à une instance de Clair des images afin de générer des rapports HTML sur les vulnérabilités contenues dans ces dernières
-- automatiquement : couplée à un Registre Docker. En effet, de cette façon, il est possible d'agir directement au moment où une image est poussée. A chaque `push`, les images sont contrôlées, et des actions pourront être déclenchées en cas de résultat(s) positif(s).
+- automatiquement : couplé à un Registre Docker. En effet, de cette façon, il est possible d'agir directement au moment où une image est poussée. A chaque `push`, les images sont contrôlées, et des actions pourront être déclenchées en cas de résultat(s) positif(s).
   - le Registre Docker de CoreOS ([quay.io](https://quay.io)) le propose nativement
   - l'équipe VMWare qui travaille sur Harbor souhaite y intégrer Clair (à priori fonctionnel grâce à [ce PR](https://github.com/vmware/harbor/pull/2166), mais non intégré dans la documentation pour le moment, ni dans la dernière release de la solution)
 
@@ -653,6 +679,24 @@ En effet, l'ajout de `--privileged` donne toutes les capabilities au conteneur e
 
 
 # Cas d'utilisation et particularités
+Nous n'allons pas ici détailler précisément les cas d'utilisation de Docker mais plutôt essayer de les classer dans de grandes catégories.
+
+## Pour les développeurs
+* travail en local
+  * facile de bootstrapper un environnement complet (notamment grâce aux nombreuses images pré-packagées que l'on peut trouver sur la toile)
+  * rapidité pour bootstrapper cet environnement (surtout si l'on compare à un processus équivalent qui utiliserait des machines virtuelles)
+* travail collaboratif
+  * permet de faire abstraction de l'OS de chacun des développeurs d'une même équipe
+  * un outil comme un registre permet de partager simplement les avancées
+
+## Des services en production
+* profiter de la grande capacité de scaling
+  * les conteneurs sont légers et rapides
+  * framework d'orchestration
+* grand pouvoir de répétabilité (un conteneur est immuable)
+* unification du packaging
+* niveau d'isolation supplémentaire (hausse du niveau de sécurité)
+  * limiter la surface d'attaque
 
 # Limites de l'isolation de type Docker
 ## Visualisation des ressources de l'hôte
@@ -664,19 +708,25 @@ Par exemple, pour la RAM :
 $ free -m
               total       utilisé      libre     partagé tamp/cache   disponible
 Mem:           7901        4788         935         866        2177        1990
-Partition d'échange:        2047           0        2047
+Swap:          2047           0        2047
 $ docker run -m 16M alpine free -m
              total       used       free     shared    buffers     cached
 Mem:          7901       6974        926        861        444       1650
 -/+ buffers/cache:       4880       3021
 Swap:         2047          0       2047
 ```
-
+## Utilisation en production
+Même si utiliser Docker en production permet d'accéder à de nombreux avantages, cela présente aussi plusieurs inconvénients **non négligeables** :
+- il est préférable d'être maître de la technologie et connaître les mécanismes sous-jacents afin de pouvoir débugger la solution si besoin est
+- les Dockerfiles doivent être **maintenus** (voir paragraphe dédié (mais pas encore écrit) :) )
+- il est tout aussi nécessaire de garder en place des mécanismes de supervision, sauvegarde, sécurité, etc. comme à l'habitude
+- même s'il est désormais très utilisé et compte uun grand nombre de contributeur, Docker est malgré tout encore un outil relativement jeune. Il est primordial de continuer à effectuer de la veille afin d'être averti des derniers bulletins de sécurité
 
 
 # TODO
 - Les configurations rédibitoires
-- use cases/particularités
+- use cases
+  - compléter
 - limites
   - prod ? mmmh...
 - construction d'images
