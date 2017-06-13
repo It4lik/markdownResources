@@ -9,7 +9,7 @@ De plus c'est surtout la **conteneurisation sous Linux** qui sera abordée ici. 
 
 Aussi, il est très difficile de recouvrir tous les aspects de sécurité autour de Docker et de la conteneurisation de façon générale. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou de surface d'exposition. Mais nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore à certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
 
-Bien que n'était pas sa vocation première, nous nous efforcerons dans ce document de revoir certains aspects techniques et bas-niveau qu'il est absolument indispensable de connaître et comprendre si on souhaite réellement appréhender la sécurité autour de Docker.
+Bien que n'étant pas sa vocation première, nous nous efforcerons dans ce document de revoir certains aspects techniques et bas-niveau qu'il est absolument indispensable de connaître et comprendre si on souhaite réellement appréhender la sécurité autour de Docker.
 
 Ce document n'a pas non plus pour vocation d'indiquer la marche technique à suivre pour obtenir un environnement Docker sécurisé et robuste. Nous ne venons ici que mettre en évidence certaines problématiques et y apporter des éléments de réponse.
 
@@ -19,14 +19,14 @@ Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneu
 Avant toute chose, il est nécessaire de rappeler très brièvement (car ce n'est pas l'objectif de ce document) les objectifs de la conteneurisation, de manière purement fonctionnelle :
 * faciliter le **packaging** des applicatifs : un seul système de packaging
 * faciliter le **déploiement** d'un applicatif : peu importe le système d'exploitation sous-jacent car c'est l'engine de conteneurisation qui s'occupera de faire tourner l'application
-* faciliter le **développement collaboratif** : le code, une fois packagé dans une un conteneur (ou plutôt, une image) est simple à transporter d'un poste à un autre, sans se préocupper ni de l'OS ni des libraires nécessaires
+* faciliter le **développement collaboratif** : le code, une fois packagé dans une un conteneur (ou plutôt, une image) est simple à transporter d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
 * accéder à un **plus grand niveau de sécurité**
   * ajoute un niveau d'isolation (au niveau du kernel principalement)
   * les conteneurs sont stateless *par définition* (reproductibilité, conformité)
 
 Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits. Les mettre en avant dans l'introduction est un choix purement subjectif, mais je pense qu'il est primordial d'avoir vent de ces faits :
 
-* les conteneurs reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui était déjà utilisées pour les mêmes usages. Si **aujourd'hui** (après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc.) vous n'accordez pas de confiance à Docker, alors vous n'accordez pas de confiance au noyau Linux.
+* les conteneurs reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages. Si **aujourd'hui** (après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc.) vous n'accordez pas de confiance à Docker, alors vous n'accordez pas de confiance au noyau Linux.
 * on parle du déploiement, et surtout du lancement d'applications
   * lancement d'applications : c'est un des rôles de systemd (à l'aide des unités de services)
   * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root`
