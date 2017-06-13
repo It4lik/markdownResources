@@ -213,6 +213,21 @@ $ getcap /usr/bin/ping
 /usr/bin/ping = cap_net_raw+ep
 ```
 
+Le mécanisme est le suivant :
+1. un utilisateur lance un binaire
+2. le kernel vérifie que l'utilisateur a les droits (DAC et MAC)
+3. en cas de succès, le kernel déduit les capabilities que possèdera le processus, en fonction :
+  * des capabilities du binaire spécifié
+  * des capabilities du processus appelant (souvent, un shell)
+4. le processus est créé
+
+**Trick:** on peut utiliser le fichier `/etc/security/capability.conf` pour positionner des capabilities sur un utilisateur du système. En réalité, ce fichier permet de positionner des capabilities sur le shell par défaut de l'utilisateur (voir `/etc/passwd`). La syntaxe est la suivante, pour ajouter la capability CAP_SYS_PTRACE au shell de l'utilisateur `johnny` :
+```shell
+$ cat /etc/security/capability.conf
+cap_sys_ptrace johnny
+none *  # Fortement recommandé
+```
+
 Extrait de la [documentation RedHat](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/docker_selinux_security_policy) : *"Capabilites constitute the heart of the isolation of containers. If you have used capabilites in the manner described in this guide, an attacker who does not have a kernel exploit will be able to do nothing even if they have root on your system."*
 
 ### netfilter
@@ -317,7 +332,7 @@ $ ip a
 1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 ```
-Congratz, you basically just created a container. 
+Congratz, you basically just created a container.
 
 # Questions récurrentes
 * **Est-ce qu'un conteneur est moins secure qu'une VM ?**
