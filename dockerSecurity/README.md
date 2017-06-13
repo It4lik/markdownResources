@@ -187,6 +187,10 @@ Le noyau est par exemple capable de gérer deux arborescences de processus total
 
 **NB:** même si tous les namespaces portent le nom de "namespace", ils ont TOUS un fonctionnement différent. Dans l'idée, ils servent bel et bien tous à isoler un jeu de ressources d'un autre, du même type, aux yeux du système. Cependant, par exemple, les namespaces `user` (doit inclure une gestion des capabilities par namespaces) et `mount` (inclut des mécanismes de scopes et de propagation des points de montage) ont un fonctionnement qui diffèrent beaucoup des autres.  
 
+**NB2:** un namespace continue d'exister :
+* tant qu'il est utilisé
+* tant qu'il existe un lien qui y fait référence (où que ce soit sur le système)
+
 ### capabilities
 **Les capabilities Linux sont les droits avec lesquels un processus est lancé.** `root` n'est pas un utilisateur magique. `root` n'a pas tous les droits. `root` est simplement un utilisateur qui a le pouvoir de lancer n'importe quel processus avec n'importe quelle capability.
 On en en trouve un certain nombre (dépend du système, on en trouve souvent + de 35). Parmi lesquelles on a par exemple :
@@ -225,17 +229,19 @@ Le mécanisme est le suivant :
 ```shell
 $ cat /etc/security/capability.conf
 cap_sys_ptrace johnny
-none *  # Fortement recommandé
+none *  # Fortement recommandé : désactive toutes les capas pour tous les users non définis dans le fichier
 ```
 
 Extrait de la [documentation RedHat](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/docker_selinux_security_policy) : *"Capabilites constitute the heart of the isolation of containers. If you have used capabilites in the manner described in this guide, an attacker who does not have a kernel exploit will be able to do nothing even if they have root on your system."*
 
 ### netfilter
 Il existe un **framework kernel permettant de lui donner la fonction de firewall : c'est netfilter.**
-Par défaut, le démon Docker utilise grandement les fonctionnalités kernel de ```netfilter``` afin de fournir du réseau aux différents conteneurs dont il est responsable. Il est évidemment possible de les visualiser à l'aide de ```iptables``` (ou ```ebtables```). Afin de pouvoir gérer le trafic, le démon crée une interface virtuelle pour chaque "réseau Docker" (on peut les visualiser avec ```docker network ls```).
+Par défaut, le démon Docker utilise grandement les fonctionnalités kernel de ```netfilter``` afin de fournir du réseau aux différents conteneurs dont il est responsable. Il est évidemment possible de les visualiser à l'aide de ```iptables``` (ou ```ebtables```). Afin de pouvoir gérer le trafic, le démon crée une interface virtuelle pour chaque "réseau Docker" (on peut visualiser les réseaux Docker avec ```docker network ls```).
 Le majeure partie des règles permettent :
 * de forwarder du traffic vers un conteneur spécifique
 * de fermer certains ports
+
+**NB:** il existe un jeu de règles `netfilter` pour chaque namespace de type `net` (e.g. tous les conteneurs peuvent )
 
 ### Rentrons un peu dans le détail...
 #### > Théorie : /proc et /sys
@@ -255,13 +261,13 @@ Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'info
   * dans chacun de ces répertoire se trouve un sous-répertoire ``ns`` qui contient autant d'entrées que le processus a de `namespaces` (au max, 1 de chaque type)
   * concrètement on peut, par exemple, avoir :
 
-  ```
+  ```shell
   $ ls /proc/16392/ns/
   cgroup	ipc  mnt  net  pid  uts
   ```
 
 Chacun de ces fichiers est un lien symbolique (pas réellement, mais il se comporte et se présente comme si c'était le cas) vers un namespace spécifique. Par exemple :
-```
+```shell
 $ sudo ls  -al /proc/16392/ns/pid
 lrwxrwxrwx 1 root root 0 16 mai   14:22 /proc/16392/ns/pid -> pid:[4026531836]
 ```
@@ -332,7 +338,7 @@ $ ip a
 1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 ```
-Congratz, you basically just created a container.
+Congratz, you basically just created a container. (`exit` ou `CTRL+D` pour quitter le shell, et donc, sortir du namespace nouvellement créé).
 
 # Questions récurrentes
 * **Est-ce qu'un conteneur est moins secure qu'une VM ?**
@@ -517,7 +523,6 @@ Avec une telle configuration, vous pouvez même essayer de `-v /:/host`, l'utili
 **Important** : ceci est plus qu'un simple mapping d'utilisateur. En effet, à chaque user namespace son jeu d'utilisateurs, certes, mais aussi **son jeu de capabilities**. Les capabilities ont pour scope un user namespace (c'est d'ailleurs pour cette raison que l'implémentation du user namespace est bien plus complexe que les autres).   
 Enfin, il est impératif de garder à l'esprit que les namespaces de type user sont comme une structure arborescente, et que le root user namespace (*e.g.* le user namespace par défaut, celui dans lequel on se trouve tout le temps) a une visibilité totale sur les autres.
 
-
 #### > Utilisateurs applicatifs ?
 
 Enfin, nous parlerons ici de la création d'un utilisateur **à l'intérieur du conteneur**, afin de l'utiliser pour faire tourner nos services. En somme, c'est la politique habituelle, celle quifait utiliser `www-data` pour faire tourner le serveur web Apache. Pour les conteneurs, c'est une question discutable...   
@@ -529,9 +534,6 @@ Il est certain qu'avec une bonne configuration (en particulier du kernel, avec s
 Nous ne parlons pas dans ce passage de plus grandes restrictions avec d'autres technologies (comme `seccomp`), mais il apparaît clait qu'avec une configuration robuste, les utilisateurs applicatifs dans les conteneurs sont inutiles.
 
 **Cependant**, on voit régulièrement les outils puissants mais complexes comme `SElinux` demeurer inutilisés. Ainsi, on préférera tout de même créer des utilisateurs applicatifs dans nos conteneurs. Cela ajoute une couche de compléxité, mais aussi de sécurité. *Disons que ça ne mange pas de pain...*
-
-
-
 
 ## Discussion autour des systèmes d'orchestration de conteneurs
 ### Plus grande exposition des vulnérabilités
@@ -707,11 +709,15 @@ Nous n'allons pas ici détailler précisément les cas d'utilisation de Docker m
 ## Des services en production
 * profiter de la grande capacité de scaling
   * les conteneurs sont légers et rapides
-  * framework d'orchestration
+  * frameworks d'orchestration
 * grand pouvoir de répétabilité (un conteneur est immuable)
 * unification du packaging
 * niveau d'isolation supplémentaire (hausse du niveau de sécurité)
   * limiter la surface d'attaque
+* s'ancre parfaitement dans la philosophie cloud-native apps
+  * hyperconvergence facilitée
+  * micro-services
+  * Infrastructure-as-code (IAC)
 
 # Limites de l'isolation de type Docker
 ## Visualisation des ressources de l'hôte
@@ -735,7 +741,7 @@ Même si utiliser Docker en production permet d'accéder à de nombreux avantage
 - il est préférable d'être maître de la technologie et connaître les mécanismes sous-jacents afin de pouvoir débugger la solution si besoin est
 - les Dockerfiles doivent être **maintenus** (voir paragraphe dédié (mais pas encore écrit) :) )
 - il est tout aussi nécessaire de garder en place des mécanismes de supervision, sauvegarde, sécurité, etc. comme à l'habitude
-- même s'il est désormais très utilisé et compte uun grand nombre de contributeur, Docker est malgré tout encore un outil relativement jeune. Il est primordial de continuer à effectuer de la veille afin d'être averti des derniers bulletins de sécurité
+- même s'il est désormais très utilisé et compte un grand nombre de contributeurs, Docker est malgré tout encore un outil relativement jeune. Il est primordial de continuer à effectuer de la veille afin d'être averti des derniers bulletins de sécurité
 
 
 # TODO
