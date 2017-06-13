@@ -323,7 +323,7 @@ $ ip a
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
 ```
 
-Il est possible de quasiment créer un conteneur, tel que Docker le fait, en une unique commande `unshare` :
+Il est possible de quasiment créer un conteneur tel que Docker le fait, en une unique commande `unshare` :
 ```shell
 $ ps -ef
 UID        PID  PPID  C STIME TTY          TIME CMD
@@ -414,6 +414,21 @@ En résumé, les images dignes de confiance sont :
 On peut éventuellement accorder dde la confiance à d'autres éditeurs, dont les dépôts ne sont pas dans *library* (par exemple, [vmware](https://hub.docker.com/u/vmware/)).
 
 ### Construction d'images
+#### > Clause `FROM`
+La clause `FROM` doit faire référence à une image digne de confiance (voir le paragraphe juste au dessus).  
+Il est aussi préférable d'éviter le tag `:latest` dans le cadre d'une utilisation en production. En effet, le tag `:latest` est régulièrement mis à jour avec des nouvelles versions de l'image en question. En cas de changements dratiques, il y a fort à parier que votre conteneur ne s'exécutera plus comme voulu, ou sera tout simplement incapable de se lancer.
+
+#### > Overlay filesystem
+Les images Docker sont stockées par défaut dans `/var/lib/docker/images`. Elles sont stockées à l'aide de filesystems particulier : des **overlay filesystems**. Un overlay filesystem repose sur un concept d'entassement de couches successives. C'est grâce à ces filesystems que Docker peut réutiliser certains "morceaux" d'images pour en construire d'autres, ou encore, c'est grâce à eux aussi que les images Docker sont immuables.  
+
+**En effet, chaque ligne dans un Dockerfile résultera en une couche (ou "layer") supplémentaire.** Une image qui, dans son Dockerfile, présente cette même ligne pourra alors directement réutiliser la première couche qui a été build.  
+
+Lorsque l'on stocke un grand nombre d'images il est donc préférable de penser à la réutilisation des différentes couches au moment de la rédaction des Dockerfiles.
+
+#### > Maintien des images
+Il est **impératif** de maintenir ses images. De la même façon qu'il est nécessaire de maintenir toutes autres applications packagée autrement. Tout vient d'être dit : une fois packagé, un package (image Docker ou autres) est immuable : il faut le ré-éditer afin de le mettre à jour.  
+
+Afin de les garder à jour, il n'est nécessaire que d'éditer le Dockerfile dont les images ont été issues.
 
 ## Sécurité des conteneurs Docker
 Ici, on fait clairement référence au lancement **d'un** conteneur, à partir d'une image, à l'aide de la commande ``docker run``.
