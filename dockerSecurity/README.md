@@ -360,7 +360,10 @@ On trouve effectivement un engouement autour de la "conteneurisation bare-metal"
 - induit une **sur-exploitation des capacités des machines actuelles** (aussi appelé "comment défoncer un cache CPU", on note aussi une sur-utilisation du réseau/stockage) car prévu pour de la VM (ça veut aussi dire que le plein potentiel de ces technos n'est pas encore tout à fait exploité)
   - les dernières générations de serveurs sont (presque) adaptées. Encore quelques (dizaines d') années avant de voir leur adoption à grande échelle
 - **moins d'isolation** : on ne profite plus de l'isolation matérielle que nous offre la VM (notamment en virtualisation toute la couche OS)  
-Donc oui, ça run sur du bare-metal. Mais il y a à la fois des avantages et des inconvénients. Certains pensent que les conteneurs ne sont qu'une première marche avant l'avènement des [unikernels](http://unikernel.org/) et des architectures serverless (l'hyperconvergence de l'infrastructure est aussi une première marche vers le serverless)...  
+- la virtualisation a bientôt 30 ans d'utilisation derrière elle (écosystème riche, processus rodés, etc)
+
+Donc oui, ça run sur du bare-metal. Mais il y a à la fois des avantages et des inconvénients. Certains pensent que les conteneurs ne sont qu'une première marche avant l'avènement des [unikernels](http://unikernel.org/) et des architectures serverless (l'hyperconvergence de l'infrastructure semble aussi être une première marche vers le serverless)...  
+
 Une réaction qui va être ou plutôt a été adoptée est de mixer les deux, pour des usages différents. Deux possibilités :
 - machines en local, maîtrisées, conteneurisation bare-metal, hautes performances, low-latency
 - machines dans le cloud, hardware abstrait, conteneurisation dans de la VM
