@@ -342,18 +342,18 @@ $ ip a
 Congratz, you basically just created a container. (`exit` ou `CTRL+D` pour quitter le shell, et donc, sortir du namespace nouvellement créé).
 
 # Questions récurrentes
-## **Est-ce qu'un conteneur est moins secure qu'une VM ?**
+#### **Est-ce qu'un conteneur est moins secure qu'une VM ?**
 Comme dit plus haut, ce n'est simplement pas comparable. Les deux reposent sur des concepts fondamentalement différents. De plus, dans la quasi-totalité des cas, l'hôte de conteneurisation est une VM. La conteneurisation n'est donc simplement qu'un niveau d'isolation supplémentaire.   
 
 
-## **Si un attaquant exploite une vulnérabilité exposée par un conteneur, a-t-il une main-mise totale sur la machine sous-jacente ?**
+#### **Si un attaquant exploite une vulnérabilité exposée par un conteneur, a-t-il une main-mise totale sur la machine sous-jacente ?**
 Cela dépend complètement du type de vulnérabilité.
 De façon générale, ça n'expose ni plus ni moins le système qu'avec un applicatif "classique" (lancé via un binaire, ou service comme systemd, directement depuis le système hôte (eg. directement dans les `namespaces` "principaux" de l'hôte)).
 En effet, une vulnérabilité kernel qui affecte un conteneur rendra l'hôte tout aussi vulnérable car les deux partagent **"physiquement"** le même kernel.
 A l'inverse, une vulnérabilité applicative (par exemple, vulnérabilité dans la version d'Apache utilisée) n'exposera pas plus le système qu'avant. Voire moins, ceci dépend de la configuration mise en place (démon, image, conteneur, cf les parties dédiées, plus bas).
 Au mieux, l'attaquant sera strictement confiné dans le conteneur. Au pire, il aura une totale main-mise sur le système sous-jacent (qui, pour rappel, est une VM...). A mi-chemin, il sera capable de se rendre compte qu'il est dans un conteneur, et éventuellement obtenir des informations sur le système hôte.    
 
-## **L'hôte c'est vraiment une VM ?** *ou* **Ca run sur du bare-metal aussi nan ?**  
+#### **L'hôte c'est vraiment une VM ?** *ou* **Ca run sur du bare-metal aussi nan ?**  
 On trouve effectivement un engouement autour de la "conteneurisation bare-metal". Dans l'état de l'art actuel, on parle d'installer un OS de type GNU/Linux en bare-metal, puis le démon Docker et ainsi d'être plus proche du matériel (pas de couche de virtualisation de type VM). Ceci a plusieurs effets :
 - [augmenter **drastiquement** les performances](http://www.stratoscale.com/blog/containers/running-containers-on-bare-metal/)
 - pas de licensing pour hyperviseurs
