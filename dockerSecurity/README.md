@@ -7,31 +7,31 @@ De plus c'est surtout la **conteneurisation sous Linux** qui sera abordée ici. 
 * dans le cas de l'utilisation de conteneurs en production il est souvent recommandé d'utiliser des hôtes GNU/Linux (bien que l'outil soit de plus en plus stable sur les autres plateformes. Nous ne discuterons pas de ces points ici.)
 * l'engine (ou runtime) de Docker a été pensé pour fonctionner à l'aide de technologies natives du noyau Linux. Bien que le portage soit actuellement un succès (avec Docker for Mac et Docker for Windows)  sur les autres plateformes grand public, cela reste un portage (on utilise les fonctionnalités Hyper-V de win10 et winserver côté Windows, et celles de xhyve pour MacOS)
 
-Aussi, il est très difficile de recouvrir tous les aspects de sécurité autour de Docker et de la conteneurisation de façon générale. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou de surface d'exposition. Mais nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore à certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
+Aussi, il est très difficile de couvrir tous les aspects de sécurité autour de Docker, ou de la conteneurisation de façon globale. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou la réduction de la surface d'exposition. Mais nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore à certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
 
 Bien que n'étant pas sa vocation première, nous nous efforcerons dans ce document de revoir certains aspects techniques et bas-niveau qu'il est absolument indispensable de connaître et comprendre si on souhaite réellement appréhender la sécurité autour de Docker.
 
 Ce document n'a pas non plus pour vocation d'indiquer la marche technique à suivre pour obtenir un environnement Docker sécurisé et robuste. Nous ne venons ici que mettre en évidence certaines problématiques et y apporter des éléments de réponse.
 
-Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneurisation à l'aide de Docker et son écosystème (bien que beaucoup d'éléments soit présentés brièvement sur le tas).
+Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneurisation à l'aide de Docker et son écosystème (bien que beaucoup d'éléments soit présentés sur le tas).
 
 # Introduction
 Avant toute chose, il est nécessaire de rappeler très brièvement (car ce n'est pas l'objectif de ce document) les objectifs de la conteneurisation, de manière purement fonctionnelle :
-* faciliter le **packaging** des applicatifs : un seul système de packaging
+* améliorer le **packaging** des applicatifs : un seul système de packaging
 * faciliter le **déploiement** d'un applicatif : peu importe le système d'exploitation sous-jacent car c'est l'engine de conteneurisation qui s'occupera de faire tourner l'application
 * faciliter le **développement collaboratif** : le code, une fois packagé dans une un conteneur (ou plutôt, une image) est simple à transporter d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
 * accéder à un **plus grand niveau de sécurité**
   * ajoute un niveau d'isolation (au niveau du kernel principalement)
   * les conteneurs sont stateless *par définition* (reproductibilité, conformité)
 
-Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits. Les mettre en avant dans l'introduction est un choix purement subjectif, mais je pense qu'il est primordial d'avoir vent de ces faits :
+Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits. Les mettre en avant dans l'introduction est un choix purement subjectif, mais je pense qu'il est primordial d'en avoir vent :
 
 * les conteneurs reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages. Si **aujourd'hui** (après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc.) vous n'accordez pas de confiance à Docker, alors vous n'accordez pas de confiance au noyau Linux.
-* on parle du déploiement, et surtout du lancement d'applications
-  * lancement d'applications : c'est un des rôles de systemd (à l'aide des unités de services)
+* Docker sert notamment à déployer des application, ainsi qu'à les faire tourner
+  * le lancement d'applications est habituellement à la charge de **`systemd`** (à l'aide des unités de services `systemd`)
   * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root`
   * le démon docker tourne avec `root`, **ce qui n'est pas le cas des conteneurs pris individuellement**. Un conteneur n'est qu'un unique processus, une simple ligne dans un ``ps``.   
-  De la même façon, systemd tourne sous `root`, mais les services qu'ils lancent peuvent posséder un utilisateur applicatif.
+  De la même façon, `systemd` tourne sous `root`, mais les services qu'ils lancent peuvent posséder un utilisateur applicatif.
 * la conteneurisation ne fait qu'apporter un niveau d'isolation supérieur. Bien sûr que cela soulève un nombre incalculable de nouvelles problématiques. Mais par nature, c'est simplement un nouveau système  d'isolation applicative. Et donc une hausse du niveau de sécurité. **Par nature.**
 * il est **purement inutile** de comparer la VM et les conteneurs sur le plan de la sécurité
   * les deux reposent sur des principes fondamentalement différents
@@ -95,8 +95,8 @@ La majeure partie des informations trouvables dans ce document se trouvent dans 
 * [Documentation Docker](https://docs.docker.com/)
 * [Documentation Kernel](https://www.kernel.org)
 * la commande ```man``` (trouvable aussi [ici](http://man7.org/linux/man-pages/man7/))
-  * ce sont les documentations les plus simples et complètes sur les fonctionnalités du kernel (les mans ne documentent pas que des binaires...)
-  * plus clair, c'est lire le code.
+  * ce sont les documentations les plus simples et complètes sur les fonctionnalités du kernel (les `man`s ne documentent pas que des binaires, mais aussi des fonctionnalité kernel, des concepts, etc.)
+  * plus clair que le `man`, c'est lire le code.
   * ``man cgroups``, ``man namespaces``, etc.
 * [Wiki de la Linux Foundation](https://wiki.linuxfoundation.org)
 * [Site vitrine de l'OCI](https://www.opencontainers.org/)
@@ -112,13 +112,18 @@ Happen First"](https://www.cisco.com/c/dam/en/us/solutions/collateral/data-cente
 **Ce document n'est donc qu'une synthèse d'un savoir communautaire.**
 
 # Communauté & standards
+Cette partie est volontairement placée en première place. Un outil ne peut ni être sécurisé, ni être pérenne, ni continuer à évoluer avec son temps s'il n'est pas entouré d'une communauté.   
+L'établissement de standards est aussi très important : ils permettent l'abstraction d'une technologie en particulier au profit de concepts directeurs. C'est aussi dans ces standards que sont établis les bonnes pratiques, les mécanismes fondamentaux et les principaux aspects de sécurité.
+
 ## Un peu d'histoire
+*A noter que ce travail n'a été possible que grâce aux avancées de LXC (LinuX Containers). En effet, LXC a réussi où OpenVZ avait échoué : les deux étaient des technologies permettant d'utiliser des conteneurs. mais OpenVZ avait besoin d'un patch kernel pour fonctionner. Une fois Les mécanismes de LXC mergés dans le kernel Linux mainline, le terrain était propice au développement d'une solution comme Docker.*
+
 A l'origine, la société **Docker avait mis sur pied sa propre librairie afin de pouvoir utiliser des conteneurs**. Ce n'est ni plus ni moins qu'une interface (au sens premier du terme) vers le kernel, qui expose une API simplifiée et dédiée à la conteneurisation.
-De façon simple, avant l'existence de telles librairies (et libcontainer **n'était pas** la première), il était nécessaire de créer manuellement les `cgroups` et namespaces, ainsi que de les articuler entre eux, afin d'avoir un conteneur. Avec une telle lib, tout ce travail a été simplifié.
+De façon simple, avant l'existence de telles librairies (et `libcontainer` **n'était pas** la première), il était nécessaire de créer manuellement les `cgroups` et `namespaces`, ainsi que de les articuler entre eux, afin d'avoir un conteneur. Avec une telle lib, tout ce travail a été simplifié.
 
 La société a aussi mis à disposition **un outil CLI très puissant et clé-en-main**, permettant d'utiliser cette API.
 
-Mais, l'engouement autour de la solution étant grandissant, et la croissance du nombre de client exponentielle (car répondant à un certain nombre de besoins, ce dont nous ne traiterons pas ici), d'autres engines de conteneurisation ont rapidement vu le jour.
+Mais, l'engouement autour de la Docker étant grandissant, et la croissance du nombre de client exponentielle (car répondant à un certain nombre de besoins, ce dont nous ne traiterons pas ici), d'autres engines de conteneurisation ont rapidement vu le jour.
 
 S'est alors rapidement posée **la question de la standardisation**. On ne parle plus de Docker, qui a révélé ces technologies au plus grand nombre, mais de la conteneurisation en général, dans le monde de demain. La question n'est en effet plus de savoir si les conteneurs seront là demain, on connaît la réponse et c'est oui. La question c'est : comment ?
 
@@ -133,6 +138,9 @@ Ceci est déterminant pour l'avenir de la conteneurisation. En effet, le dévelo
 
 **L'OCI cherche à faciliter la transition vers le monde des conteneurs, et surtout, à en pérenniser l'utilisation.**
 
+## OpenSource & Linux Foundation
+
+## Grands acteurs de l'IT
 
 # How do containers work ?
 
@@ -153,7 +161,7 @@ Il existe un certain nombre de contrôleurs qui peut dépendre en fonction de la
 * ***blkio*** : permet de limiter les actions de lecture ET d'écriture sur un périphérique de type bloc
 * ***net_prio*** : permet de prioriser le trafic de certaines interfaces réseau vis-à-vis d'autres
 
-*`man cgroups` pour une liste complète`.
+* `man cgroups` pour une liste complète.
 
 Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
 
@@ -217,7 +225,7 @@ $ getcap /usr/bin/ping
 
 Le mécanisme est le suivant :
 1. un utilisateur lance un binaire
-2. le kernel vérifie que l'utilisateur a les droits (DAC et MAC)
+2. le kernel vérifie que l'utilisateur a les droits (DAC, MAC, autres)
 3. en cas de succès, le kernel déduit les capabilities que possèdera le processus, en fonction :
   * des capabilities du binaire spécifié
   * des capabilities du processus appelant (souvent, un shell)
@@ -344,6 +352,20 @@ De façon générale, ça n'expose ni plus ni moins le système qu'avec un appli
 En effet, une vulnérabilité kernel qui affecte un conteneur rendra l'hôte tout aussi vulnérable car les deux partagent **"physiquement"** le même kernel.
 A l'inverse, une vulnérabilité applicative (par exemple, vulnérabilité dans la version d'Apache utilisée) n'exposera pas plus le système qu'avant. Voire moins, ceci dépend de la configuration mise en place (démon, image, conteneur, cf les parties dédiées, plus bas).
 Au mieux, l'attaquant sera strictement confiné dans le conteneur. Au pire, il aura une totale main-mise sur le système sous-jacent (qui, pour rappel, est une VM...). A mi-chemin, il sera capable de se rendre compte qu'il est dans un conteneur, et éventuellement obtenir des informations sur le système hôte.    
+
+* **L'hôte c'est vraiment une VM ?** *ou* **Ca run sur du bare-metal aussi nan ?**  
+On trouve effectivement un engouement autour de la "conteneurisation bare-metal". Dans l'état de l'art actuel, on parle d'installer un OS de type GNU/Linux en bare-metal, puis le démon Docker et ainsi d'être plus proche du matériel (pas de couche de virtualisation de type VM). Ceci a plusieurs effets :
+- [augmenter **drastiquement** les performances](http://www.stratoscale.com/blog/containers/running-containers-on-bare-metal/)
+- pas de licensing pour hyperviseurs
+- induit une **sur-exploitation des capacités des machines actuelles** (aussi appelé "comment défoncer un cache CPU", on note aussi une sur-utilisation du réseau/stockage) car prévu pour de la VM (ça veut aussi dire que le plein potentiel de ces technos n'est pas encore tout à fait exploité)
+  - les dernières générations de serveurs sont (presque) adaptées. Encore quelques (dizaines d') années avant de voir leur adoption à grande échelle
+- **moins d'isolation** : on ne profite plus de l'isolation matérielle que nous offre la VM (notamment en virtualisation toute la couche OS)  
+Donc oui, ça run sur du bare-metal. Mais il y a à la fois des avantages et des inconvénients. Certains pensent que les conteneurs ne sont qu'une première marche avant l'avènement des [unikernels](http://unikernel.org/) et des architectures serverless (l'hyperconvergence de l'infrastructure est aussi une première marche vers le serverless)...  
+Une réaction qui va être ou plutôt a été adoptée est de mixer les deux, pour des usages différents. Deux possibilités :
+- machines en local, maîtrisées, conteneurisation bare-metal, hautes performances, low-latency
+- machines dans le cloud, hardware abstrait, conteneurisation dans de la VM
+
+*"Generally speaking, low latency apps do better in-house, while capacity optimization, mixed workloads, and disaster recovery favor virtualization." from [here](https://morpheusdata.com/blog/2017-04-28-the-drawbacks-of-running-containers-on-bare-metal-servers)*
 
 # Sécurité et bonnes pratiques Docker
 ## Sécurité du démon Docker
