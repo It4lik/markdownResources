@@ -19,7 +19,7 @@ Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneu
 Avant toute chose, il est nécessaire de rappeler très brièvement (car ce n'est pas l'objectif de ce document) les objectifs de la conteneurisation, de manière purement fonctionnelle :
 * améliorer le **packaging** des applicatifs : un seul système de packaging
 * faciliter le **déploiement** d'un applicatif : peu importe le système d'exploitation sous-jacent car c'est l'engine de conteneurisation qui s'occupera de faire tourner l'application
-* faciliter le **développement collaboratif** : le code, une fois packagé dans une un conteneur (ou plutôt, une image) est simple à transporter d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
+* faciliter le **développement collaboratif** : le code, une fois packagé dans un conteneur (ou plutôt, une image) est transportable d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
 * accéder à un **plus grand niveau de sécurité**
   * ajoute un niveau d'isolation (au niveau du kernel principalement)
   * les conteneurs sont stateless *par définition* (reproductibilité, conformité)
@@ -69,6 +69,9 @@ Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits
       * [Utilisation des namespaces de type `user`](#-user-namespace-remapping)
       * [Utilisateurs applicatifs dans un conteneur ?](#-utilisateurs-applicatifs-)
   * [Discussion autour de l'orchestration](#discussion-autour-des-systèmes-dorchestration-de-conteneurs)
+    * [Plus grande exposition de vulnérabilités](#plus-grande-exposition-des-vulnérabilités)
+    * [Gestion de secrets](#secrets-management)
+    * [Bases de données, clusters, et consistence](#base-de-données--clusters--consistence)
   * [Réseau : aperçu](#le-réseau-dans-docker)
   * [Stockage : aperçu](#le-stockage-et-la-sauvegarde-avec-docker)
     * [Conteneurs & Données](#des-conteneurs-et-des-données)
@@ -393,6 +396,9 @@ Docker a fait le choix de désactiver ces options, pour satisfaire le plus grand
 **Si ces sécurités sont désactivées par défaut, c'est effectivement une feature. L'introduction de cette feature est la conséquence du public visé par Docker.**
 
 ## Sécurité des hôtes Docker
+
+**TODO** : éclater cette partie
+
 **Nous parlons ici des hôtes Docker "standalone"** : les hôtes qui ne sont PAS membres d'un quelconque framework d'orchestration (un point y sera dédié).
 De fait les hôtes Docker sont très souvent des machines virtuelles.  
 De plus, il est recommandé d'en utiliser pour bénéficier de tous les avantages qu'elles apportent (sur lesquels nous ne nous attarderons pas ici). Etant une machine virtuelle, l'hôte Docker se soumet aux règles habituelles concernant les machines virtuelles. Nous n'en allons pas en dresser une liste exhaustive, mais voici certaines des grandes lignes :
@@ -403,6 +409,10 @@ De plus, il est recommandé d'en utiliser pour bénéficier de tous les avantage
   * un hôte fait tourner une unique application (souvent n-tiers) conteneurisée
   * tous les hôtes dans le même sous-réseau exposent des services de sensibilité équivalente
 * **Les hôtes possèdent un utilisateur UNIX dédié au lancement de conteneur avec une configuraton extrêmement restrictive**
+* Utiliser un **OS dédié**. Il en existe désormais plusieurs, qui présentent tous des avantages différents car matérialisant des concepts différents. De façon générale, on retrouve certaines caractéristiques : OS léger (stockage), Docker présent nativement, diverses optimisations kernel, ou encore la sécurité (politique moindre privilège orientée Docker uniquement, etc.) On peut par exemple citer :
+  * [RancherOS](http://rancher.com/rancher-os/) - le plus léger (~20Mo), uniquement kernel opti + Docker qui remplace systemd
+  * [AtomicHost](http://www.projectatomic.io/download/) - développé par RedHat, embarque la sécu native RHEL (SELinux, seccomp) et est aussi optimisé pour faire tourner des conteneurs (avec Docker)
+  * [PhotonOS](https://vmware.github.io/photon/) - développé par VMWare, assez léger et limite aussi la surface d'exposition. Sa force résidant dans l'intégration avec vSphere (pour le [VIC engine](https://vmware.github.io/vic/))
 * On peut imaginer un tas d'autres mesures visant à augmenter le niveau de sécurité d'un hôte Docker :
   * customiser les `cgroups` du système afin de créer les `cgroups` parents de tous les `cgroups` enfants utilisés par les conteneurs
   * dédier une interface réseau au forwarding de port vers des conteneurs, tandis qu'une autre est utilisée pour le reste (joindre l'extérieur, administration, backup, monitoring, etc.)
@@ -590,8 +600,11 @@ Il est donc important de garder à l'esprit que toutes les machines membres d'un
 
 **Même** (surtout ?) **avec un framework d'orchestration, il reste impératif de cloisônner au moins en terme de réseau les différentes applications & les différents clusters.**
 
-## Le réseau dans Docker
+### Secrets management
 
+### Base de données & Clusters & Consistence
+
+## Le réseau dans Docker
 ### Lonely host
 [Bonne ressource](http://hicu.be/category/networking) concernant le réseau sur un hôte unique, expliqué de façon simplifiée.
 #### Driver par défaut : bridge
