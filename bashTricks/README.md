@@ -80,7 +80,7 @@ sayHello{ echo "Hello World !" }
 
 ## Some of u-should-know-about-it bash features
 ### Bash types
-- Bash know about types. Yeeees he does.
+- Bash know about types. Yeeees it does.
   - by default, all variables are interpreted as strings
   - you can specify a type with ```declare``` builtin's options
 ```shell
@@ -96,12 +96,15 @@ You must know about them. Start from running ```compgen -b``` and ```compgen -k`
 
 
 ### Other features
-- ```$1```, ```$2```, ..., ```$n``` contains the args !
+- ```$1```, ```$2```, ..., ```$n``` contains the args and options !
   - this works for ```scripts``` but also in functions' bodies
   - ```$@``` contains all args. ```$#``` contains the number of args.
   - Don't forget about ```shift [int]```
+  - Many `bash` builtins use double dash expression `--` to signify the end of options. But not arguments.
+    - Typical example, wanna grep `-v` ? `$ grep -- -v your file`
+    - Here `-v` is gonna be interpreted as an argument, not an option (or switch, or whatever you call it)
 - use ```" "``` to enable things like variable and command substitution
-- use ```' '``` to make ```bash``` interpret literally the line (except for ```'``` character who is the end of string)
+- use ```' '``` to make ```bash``` interpret literally the line (except for ```'``` character which is the end of string)
 ```shell
 # stupid example
 test="Heeey"
@@ -122,9 +125,10 @@ echo '${test}' "is ${test}"
 ```
 - **```bash``` can stop his execution if command failed**. Just use ```set -e``` on top of your script.
   - ```set``` supports a few other options, [check them out](http://tldp.org/LDP/abs/html/options.html)
-  - it is used to se ```bash``` options from within the script (and eventually unset them)
-  - surround a block with ```set -x``` and ```set +x``` to debug only this specific block
-- you can **trap kernel signals** with... ```trap```
+  - it is used to set ```bash``` options from within the script (and eventually unset them)
+  - surround a block with `set -x` and `set +x` to debug only this specific block
+  - many of these options can be passed when calling `bash` binary directly
+- you can **trap kernel signals** with... `trap`
   - trap ```SIGINT``` (CTRL+C) to cleanup before exiting
 ```shell
 trap cleanupFunction SIGINT
