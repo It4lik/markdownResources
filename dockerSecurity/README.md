@@ -1,33 +1,35 @@
 # Conteneurs & Sécurité
 
-Ce document a pour but d'éclairer plusieurs aspects de sécurité autour de la conteneurisation.
-Avant d'aller plus loin, il est nécessaire de préciser que **nous nous intéresserons principalement ici à Docker.** C'est en effet la technologie la plus populaire autour de la conteneurisation, sur tous les points (mouvement global, développeurs, administrateurs, etc).
-De plus c'est surtout la **conteneurisation sous Linux** qui sera abordée ici. Ceci aussi pour des raisons simples :
-* il existe une moins grande communauté qui l'utilise sur d'autres plateformes (peut-être Azure...)
-* dans le cas de l'utilisation de conteneurs en production il est souvent recommandé d'utiliser des hôtes GNU/Linux (bien que l'outil soit de plus en plus stable sur les autres plateformes. Nous ne discuterons pas de ces points ici.)
-* l'engine (ou runtime) de Docker a été pensé pour fonctionner à l'aide de technologies natives du noyau Linux. Bien que le portage soit actuellement un succès (avec Docker for Mac et Docker for Windows)  sur les autres plateformes grand public, cela reste un portage (on utilise les fonctionnalités Hyper-V de win10 et winserver côté Windows, et celles de xhyve pour MacOS)
+Ce document a pour but d'aborder plusieurs aspects de sécurité autour de la conteneurisation.
+Avant d'aller plus loin, il est nécessaire de préciser que **nous nous intéresserons principalement ici à Docker.** C'est encore aujourd'hui la solution la plus utilisée, aussi bien pour du développement que pour de la production. Par conséquent, c'est surtout la **conteneurisation sous GNU/Linux** qui sera abordée ici. Ceci pour plusieurs raisons :
+* c'est le mode de fonctionnement le plus utilisé
+* Docker a principalement muri au sein de l'écosystème GNU/Linux, c'est sur cette plateforme qu'il est aujourd'hui le plus stable et robuste
+* c'est le choix le plus flexible : l'utilisateur pouvant avoir une totale maîtrise du fonctionnement de l'outil
 
-Aussi, il est très difficile de couvrir tous les aspects de sécurité autour de Docker, ou de la conteneurisation de façon globale. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou la réduction de la surface d'exposition. Mais nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore à certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
+Aussi, il est très difficile de couvrir tous les aspects de sécurité autour de la conteneurisation, ou même de Docker spécifiquement. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou la réduction de la surface d'exposition. Mais nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore à certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
 
-Bien que n'étant pas sa vocation première, nous nous efforcerons dans ce document de revoir certains aspects techniques et bas-niveau qu'il est absolument indispensable de connaître et comprendre si on souhaite réellement appréhender la sécurité autour de Docker.
+Bien que n'étant pas sa vocation première, nous nous efforcerons dans ce document de revoir certains aspects purement techniques qu'il est absolument indispensable de connaître et comprendre si on souhaite réellement appréhender la sécurité autour de Docker.
 
-Ce document n'a pas non plus pour vocation d'indiquer la marche technique à suivre pour obtenir un environnement Docker sécurisé et robuste. Nous ne venons ici que mettre en évidence certaines problématiques et y apporter des éléments de réponse.
+Ce document n'a pas non plus pour vocation d'être un guide pour sécuriser un environnement Docker ou utilisant de la conteneurisation. Nous ne venons ici que mettre en évidence certaines problématiques et y apporter des éléments de réponse. Plusieurs mitigation techniques seront malgré tout proposées tout au long du document. 
 
-Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneurisation à l'aide de Docker et son écosystème (bien que beaucoup d'éléments soit présentés sur le tas).
+Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneurisation à l'aide de Docker et son écosystème (bien que beaucoup d'éléments soient présentés sur le tas).
 
 # Introduction
-Avant toute chose, il est nécessaire de rappeler très brièvement (car ce n'est pas l'objectif de ce document) les objectifs de la conteneurisation, de manière purement fonctionnelle :
-* améliorer le **packaging** des applicatifs : un seul système de packaging
-* faciliter le **déploiement** d'un applicatif : peu importe le système d'exploitation sous-jacent car c'est l'engine de conteneurisation qui s'occupera de faire tourner l'application
-* faciliter le **développement collaboratif** : le code, une fois packagé dans un conteneur (ou plutôt, une image) est transportable d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
+Avant toute chose, il est nécessaire de présenter la conteneurisation, **d'un point de vue purement fonctionnel**. Quels sont les objectifs de la conteneurisation ?
+* permettre un système de **packaging** unifié des applicatifs 
+* faciliter le **déploiement** d'un applicatif
+  * en étant indépendant de la plateforme (du moment que la solution de conteurisation est compatible)
+  * en proposant un moyen unifié de gérer les applications
+* faciliter le **développement collaboratif** 
+  * le code, une fois packagé dans un conteneur (ou plutôt, une image) est transportable d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
 * accéder à un **plus grand niveau de sécurité**
-  * ajoute un niveau d'isolation (au niveau du kernel principalement)
-  * les conteneurs sont stateless *par définition* (reproductibilité, conformité)
+  * ajoute un niveau d'isolation (basés sur des mécanismes kernel (GNU/Linux ou Windows) ou une couche de virtualisation)
+  * les conteneurs sont souvent stateless *par définition* (reproductibilité, conformité)
 
-Aussi, avant d'embrayer sur le développement, j'aimerai apporter quelques faits. Les mettre en avant dans l'introduction est un choix purement subjectif, mais je pense qu'il est primordial d'en avoir vent :
+Aussi, avant de développer, j'aimerai apporter quelques faits. Les mettre en avant dans l'introduction est un choix purement subjectif, mais je pense qu'il est primordial de commencer par réfléchir à ces idées :
 
-* les conteneurs reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages. Si **aujourd'hui** (après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc.) vous n'accordez pas de confiance à Docker, alors vous n'accordez pas de confiance au noyau Linux.
-* Docker sert notamment à déployer des application, ainsi qu'à les faire tourner
+* les conteneurs GNU/Linux reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages (isolation, limitation). Si **aujourd'hui** (après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc.), un même niveau de confiance peut être donné à la conteneurisation pure (comme la pratique Docker) qu'au kernel lui-même.
+* Docker sert notamment à déployer des applications, ainsi qu'à les exécuter et les rendre accessibles HEEEEEEEERE
   * le lancement d'applications est habituellement à la charge de **`systemd`** (à l'aide des unités de services `systemd`)
   * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root`
   * le démon docker tourne avec `root`, **ce qui n'est pas le cas des conteneurs pris individuellement**. Un conteneur n'est qu'un unique processus, une simple ligne dans un ``ps``.   
