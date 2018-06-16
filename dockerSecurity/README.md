@@ -19,7 +19,7 @@ Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneu
 Avant toute chose, il est nécessaire de rappeler très brièvement (car ce n'est pas l'objectif de ce document) les objectifs de la conteneurisation, de manière purement fonctionnelle :
 * améliorer le **packaging** des applicatifs : un seul système de packaging
 * faciliter le **déploiement** d'un applicatif : peu importe le système d'exploitation sous-jacent car c'est l'engine de conteneurisation qui s'occupera de faire tourner l'application
-* faciliter le **développement collaboratif** : le code, une fois packagé dans un conteneur (ou plutôt, une image) est transportable d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
+* faciliter le **développement collaboratif** : le code, une fois packagé dans un conteneur (ou plutôt, une image) est transportable d'un poste à un autre, sans se préoccuper ni de l'OS ni des librairies nécessaires
 * accéder à un **plus grand niveau de sécurité**
   * ajoute un niveau d'isolation (au niveau du kernel principalement)
   * les conteneurs sont stateless *par définition* (reproductibilité, conformité)
@@ -133,7 +133,7 @@ S'est alors rapidement posée **la question de la standardisation**. On ne parle
 ## Open Container Initiative
 L'OCI est un projet de la Linux Foundation, s'inscrivant dans cette mouvance globale à vouloir standardiser un maximum de choses afin de permettre une évolution de l'informatique au sens large de façon simple et sans accrocs. On peut aussi par exemple noter l'[Open API Initiative](https://www.openapis.org/) qui s'inscrit dans ce même mouvement.
 
-L'OCI propose donc des spécifications, des standards : pour les images de conteneurs, ou encore pour l'engine lui-même. Pour le runtime, on trouve par exemple la spécification [ici](https://github.com/opencontainers/runtime-spec) et son implémentation libre et open-source [ici](https://github.com/opencontainers/runc). L'implémentation porte le nom de ```runc``` et c'est désomais le runtime utilisé notamment par Docker. **Docker n'est plus, vive Docker.**
+L'OCI propose donc des spécifications, des standards : pour les images de conteneurs, ou encore pour l'engine lui-même. Pour le runtime, on trouve par exemple la spécification [ici](https://github.com/opencontainers/runtime-spec) et son implémentation libre et open-source [ici](https://github.com/opencontainers/runc). L'implémentation porte le nom de ```runc``` et c'est désormais le runtime utilisé notamment par Docker. **Docker n'est plus, vive Docker.**
 
 A noter que le projet est soutenu par de grands acteurs parmis lesquels Microsoft, IBM, Huawei, EMC, Docker, Dell, Google, HP, Goldman Sachs (hum hum...), Twitter, RedHat, etc.
 
@@ -158,7 +158,7 @@ Nous n'allons pas rentrer ici dans les détails, mais nous allons malgré tout p
 
 ### cgroups
 
-**Les `cgroups` permettent d'allouer des quantités de ressources à des groupes de processus** (ses fonctionnalités sont en réalité plus larges, mais nous n'en discuterons que très peu ici). Un `cgroup` est un groupe de processus qui sont soumis à des rgèles appelées "contrôleurs".
+**Les `cgroups` permettent d'allouer des quantités de ressources à des groupes de processus** (ses fonctionnalités sont en réalité plus larges, mais nous n'en discuterons que très peu ici). Un `cgroup` est un groupe de processus qui sont soumis à des règles appelées "contrôleurs".
 Il existe un certain nombre de contrôleurs qui peut dépendre en fonction de la distribution (on en trouve 11 généralement). En voici quelques-uns (les principaux) afin d'avoir une idée de leur utilité :
 * ***cpuset*** : permet d'allouer un coeur processeur à un groupe de tâche
 * ***blkio*** : permet de limiter les actions de lecture ET d'écriture sur un périphérique de type bloc
@@ -209,7 +209,7 @@ On en en trouve un certain nombre (dépend du système, on en trouve souvent + d
 * ***CAP_NET_ADMIN*** : permet de modifier les tables de routage, les règles de proxying, la possibilité de multicast, etc.
 * ***CAP_NET_BIND_SERVICE*** : permet d'écouter sur un port en dessous de 1024
 
-On reconnaît ici les superpouvoirs de `root`. Il est possible de visualiser les capabilities de chacun des processus lancés sur le système avec le binaire ```lscap``` rarement présent par défaut (quelque soit la distrib).
+On reconnaît ici les super-pouvoirs de `root`. Il est possible de visualiser les capabilities de chacun des processus lancés sur le système avec le binaire ```lscap``` rarement présent par défaut (quelque soit la distrib).
 
 A l'instar de n'importe quel autre processus du sysème, un conteneur se voit attribuer un certain nombre de capabilities. Il est possible lors du lancement d'un conteneur (`docker run`) d'en ajouter (`--cap-add`) ou d'en supprimer (`--cap-drop`).
 
@@ -560,7 +560,7 @@ PID   USER     TIME   COMMAND
 #### > User namespace remapping
 Il est possible de positionner **sur le démon** l'option `--userns-remap` (binaire `dockerd`, on le modifie dans l'unité de service systemd).   
 Celle-ci va permettre d'exploiter les mécanismes de [`subuid`](http://man7.org/linux/man-pages/man5/subuid.5.html) et [`subgid`](http://man7.org/linux/man-pages/man5/subuid.5.html). Ceux-ci sont configurables dans des fichiers définissant quel utilisateur a le droit de manipuler quel autre utilisateur, ou plutôt quels autres `uid` et `gid` que les siens.   
-Ainsi, il est possible de définir des plages d'`uid` et `gid` -dans leurs fichiers respectifs- afin de définir les IDs qui pourront être utilisés par ces nouveaux utilisateurs. On utilise souvent l'argument `default` à cette option, qui a pour effet d'utiliser un utilisateur et un groupe qui portent le nom de `dockremap` (le changer est purement cosmétique).  
+Ainsi, il est possible de définir des plages d'`uid` et `gid` -dans leurs fichiers respectifs- afin de définir les IDs qui pourront être utilisés par ces nouveaux utilisateurs. On utilise souvent l'argument `default` à cette option, qui a pour effet d'utiliser un utilisateur et un groupe qui portent le nom de `dockermap` (le changer est purement cosmétique).  
 
 
 **Exemple : un utilisateur `root` dans le conteneur qui correspond à un autre utilisateur sur l'hôte.**  
@@ -594,7 +594,7 @@ Nous ne parlons pas dans ce passage de plus grandes restrictions avec d'autres t
 En utilisant un système d'orchestration de conteneurs, il est récurrent d'utiliser des politiques de HA et de redémarrage des services.
 Il sera par exemple possible de demander au système de remonter un conteneur qui serait amené à être indisponible. Les raisons de cette indisponibilité peuvent se révéler très diverses : lui même a coupé (dépassement de ressources, bug, etc), l'hôte s'est coupé, etc.  
 Dans le cas où l'hôte se coupe, on voit souvent des politiques qui visent à reprogrammer le conteneur sur un autre noeud.   
-Si ce conteneur expose un service vulnérable, et répresente donc une faille de sécurité, qui peut amener un attaquant à pénétrer dans le système hôte, alors toutes les machines du cluster pourront potentiellement être compromises (une vulnérabilité kernel pourrait remplir ces conditions).
+Si ce conteneur expose un service vulnérable, et représente donc une faille de sécurité, qui peut amener un attaquant à pénétrer dans le système hôte, alors toutes les machines du cluster pourront potentiellement être compromises (une vulnérabilité kernel pourrait remplir ces conditions).
 
 Il est donc important de garder à l'esprit que toutes les machines membres d'un cluster d'orchestration sont à considérer de manière équivalente en terme de sécurité. Si l'une est compromise il est à parier qu'une bonne partie du reste des machines le soit aussi.
 
@@ -602,7 +602,7 @@ Il est donc important de garder à l'esprit que toutes les machines membres d'un
 
 ### Secrets management
 
-### Base de données & Clusters & Consistence
+### Base de données & Clusters & Consistance
 
 ## Le réseau dans Docker
 ### Lonely host
@@ -613,7 +613,7 @@ Par défaut, les réseaux créés dans Docker sont un assemblement de plusieurs 
 Ce n'est cependant ni en terme de robustesse, ni de fonctionnalités, ni même de rapidité le meilleur choix à faire en ce qui concerne le driver réseau de Docker.
 
 #### MACVLAN et IPVLAN
-Bien que différents, nous allons aggréger ces deux types de réseaux en un seul point pour une raison simple : ils répondent parfaitement aux besoins d'une VM ou d'un conteneur en terme de connectivité.
+Bien que différents, nous allons agréger ces deux types de réseaux en un seul point pour une raison simple : ils répondent parfaitement aux besoins d'une VM ou d'un conteneur en terme de connectivité.
 MACVLAN agit comme un switch (équipement L2) tandis que IPVLAN agit comme un routeur (L3).
 
 Nous ne rentrerons pas dans les détails techniques ou dans des études de benchmarking, ces éléments foisonnant sur le web. Simplement à titre indicatif : il est souvent très fortement conseillé d'abandonner le driver réseau de base au profit de MACVLAN et IPVLAN.
@@ -668,7 +668,7 @@ A noter que dans l'ensemble des cas, il serait potentiellement possible d'utilis
 ### Gestion des volumes au sein d'un framework d'orchestration
 Les différents frameworks d'orchestration proposent chacun une façon de gérer les volumes utilisés par les conteneurs. En effet, dans le cas de l'utilisation d'orchestration, le problème est différent. On ne cherche plus seulement à rendre persistent le stockage à travers des redémarrages, mais aussi consistant à travers le temps et partagé entre les différents hôtes du cluster.
 
-Nous ne nous attarderons pas ici sur ce sujet puisqu'il serait nécessaire de détailler énormément chacunes des solutions. Nous mentionnerons cependant le fait que Kubernetes est le framework d'orchestration de conteneurs le plus utilisé à ce jour, et il fournit lui aussi de nombreuses interfaces afin d'utiliser toutes sortes de backend de stockage, à l'instar des plugins de stockage Docker (voir plus haut).
+Nous ne nous attarderons pas ici sur ce sujet puisqu'il serait nécessaire de détailler énormément chacune des solutions. Nous mentionnerons cependant le fait que Kubernetes est le framework d'orchestration de conteneurs le plus utilisé à ce jour, et il fournit lui aussi de nombreuses interfaces afin d'utiliser toutes sortes de backend de stockage, à l'instar des plugins de stockage Docker (voir plus haut).
 
 Une des configurations particulièrement robuste concernant les problématiques de stockage pour Kubernetes est l'utilisation de [GlusterFS + Heketi](https://github.com/heketi/heketi/wiki/Kubernetes-Integration).
 
@@ -684,7 +684,7 @@ De ce constat, les problématiques de sauvegarde sont les mêmes qu'à l'accoutu
 
 
 ## Applicatifs permettant de renforcer la sécurité de Docker
-Il existe de nombreux applciatifs permettant de renforcer la sécurité autour de Docker. De part leur grand nombre et surtout le caractère florissant de cet écosystème, nous n'en verrons que quelques-uns.
+Il existe de nombreux applicatifs permettant de renforcer la sécurité autour de Docker. De part leur grand nombre et surtout le caractère florissant de cet écosystème, nous n'en verrons que quelques-uns.
 
 ### Signatures des images : Notary
 Notary n'est pas un outil qui se limite à une utilisation pour des conteneurs, mais peut être utilisé de concert avec n'importe quelle collection d'objets. Ici nous allons discuter de son utilisation dans le cadre de la signature des images d'un *Registre Docker*.
@@ -741,7 +741,7 @@ Dans le cadre du projet Moby, [un fichier JSON de référence](https://github.co
 
 Pour que l'engine Docker puisse utiliser `seccomp` il est impératif que le kernel dont il est question soit configuré avec l'option `CONFIG_SECCOMP` activée et Docker lui-même doit avoir été compilé avec `seccomp`. Dans ce cas-là, plusieurs appels système sont bloqués par défaut (se référer à )
 
-## Les configurations rédibitoires (*ou mauvaises pratiques*)
+## Les configurations rédhibitoires (*ou mauvaises pratiques*)
 ### `--privileged` flag
 Cette option du `docker run` est tout bonnement à bannir totalement. Elle peut être utile à des fins de tests (lancer des conteneurs depuis un conteneur en montant le socket UNIX où écoute le démon Docker par exemple), mais est à oublier le cas échéant.   
 
@@ -810,7 +810,7 @@ Même si utiliser Docker en production permet d'accéder à de nombreux avantage
 
 
 # TODO
-- Les configurations rédibitoires
+- Les configurations rédhibitoires
   - compléter
 - use cases
   - compléter
@@ -822,5 +822,5 @@ Même si utiliser Docker en production permet d'accéder à de nombreux avantage
 - réseau
   - exemple IPVLAN/MACVLAN (gif)
 - standards
-  - **TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment constuire les interfaces réseau pour des conteneurs.**
+  - **TO MOVE :** Il peut être nécessaire de prendre connaissance de **la [CNI](https://github.com/containernetworking/cni) : un standard visant à décrire comment construire les interfaces réseau pour des conteneurs.**
 - docker compose ?
