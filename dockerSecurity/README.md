@@ -56,7 +56,7 @@ Aussi, avant de d'aller plus avant, j'aimerai discuter quelques faits dont il es
   * [OCI : Open Container Initiative](#open-container-initiative)
 * [How do containers work ?](#how-do-containers-work-)
   * [Technologies noyau](#technologies-noyau)
-  * [Containers, Runtimes, Docker]()
+  * [Containers, Runtimes, Docker](#containers-runtimes-docker)
 * [Questions récurrentes](#questions-récurrentes)
 * [Sécurité & bonnes pratiques Docker](#sécurité-et-bonnes-pratiques-docker)
   * [Le démon Docker](#sécurité-du-démon-docker)
@@ -324,7 +324,7 @@ Jouer avec les capas :
 * `setcap` et `getcap`
 * `capsh`
 
-### Mise en évidence
+#### Mise en évidence
 
 ```shell
 # logged as an unprivileged (but sudo) user
@@ -372,6 +372,52 @@ Dans le cas de Docker, avec le driver réseau de base, chaque réseau Docker est
 
 Autre exemple, isoler un processus dans une namespace PID revient à utiliser un autre `/proc`, puisque ce dernier liste tous les processus du système.
 
+## Containers, Runtimes, Docker
+
+#### Container
+
+Un conteneur (ou *container* en anglais) est un outil, faisant appel à des mécanismes système d'isolation et de limitation, permettant l'exécution restreinte d'un processus (et de ses fils). Il est possible de les créer et gérer à la main (dans des VMs, ou avec un n oyau GNU/Linux comme vu plus haut), mais on préfère souvent utiliser une solution dédiée.
+
+#### Runtime
+
+Lorsqu'il s'agit de la conteneurisation, le *runtime* fait référence à l'outil (ou l'ensemble d'outils) permettant d'abstraire les mécanismes système vis-à-vis de l'utilisateur. Aujourd'hui, on distingue deux types de runtime : 
+* un outil permettant de gérer les conteneurs eux-mêmes de façon individuelle
+  * abstraction des *namespaces*, *cgroups*, et *capabilities*, entre autres
+* un outil permettant de gérer l'environnement de conteneurisation
+  * gestion d'images, de réseau, de stockage
+
+[`¢ontainerd`](https://containerd.io/) est aujourd'hui le runtime standard, poussé par l'OCI, et notamment utilisé par Docker et Kubernetes, allié avec `runc` pour l'exécution de conteneurs.
+
+#### Docker (sous GNU/Linux)
+
+L'architecture de base de Docker consiste en un démon qui écoute sur un socket (UNIX ou TCP), afin de créer des conteneurs. Le binaire `docker` permet de passer des requêtes vers l'API exposée par le démon.
+
+Docker (sous GNU/Linux) utilise comme runtime par défaut [`¢ontainerd`](https://containerd.io/) qui embarque [`runc`](https://github.com/opencontainers/runc). `¢ontainerd` est un démon qui écoute sur un socket, c'est lui qui est chargé de recevoir les ordres utilisateur (`docker run` = "lance un conteneur !"). Lorsqu'un conteneur est lancé, `runc` est utilisé afin de créer l'environnement d'exécution bas-niveau du conteneur (*namespaces*, *cgroups*, et *capabilities*). La communication entre `¢ontainerd` est le conteneur est maintenu grâce un processus `shim`.
+
+Mise en évidence : 
+```shell
+$ docker run -d alpine sleep 9999
+49d63de8f4281c429f0078e6280e4a9886f4a60c87b3df139a65f1e5c9b8cad5
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+49d63de8f428        alpine              "sleep 9999"        2 seconds ago       Up 1 second                             competent_kapitsa
+$ ps -ef | grep docker
+root      3846     1  0 12:42 ?        00:00:15 /usr/bin/dockerd
+root      3853  3846  0 12:42 ?        00:00:11 docker-containerd --config /var/run/docker/containerd/containerd.toml
+root      6938  3853  0 14:30 ?        00:00:00 docker-containerd-shim -namespace moby -workdir /var/lib/docker/containerd/daemon/io.containerd.runtime.v1.linux/moby/49d63de8f4281c429f0078e6280e4a9886f4a60c87b3df139a65f1e5c9b8cad5 -address /var/run/docker/containerd/docker-containerd.sock -containerd-binary /usr/bin/docker-containerd -runtime-root /var/run/docker/runtime-runc
+$ ls /var/run/docker/runtime-runc/moby
+49d63de8f4281c429f0078e6280e4a9886f4a60c87b3df139a65f1e5c9b8cad5
+```
+* le processus `dockerd` est le démon Docker qui réceptionne nos ordres
+  * l'utilisateur communique **via** une API REST (socket UNIX ou TCP) avec le démon (par défaut dans `/var/run/docker.sock`)
+  * l'utilisateur utilise un client, comme le binaire `docker`
+* le processus `docker-containerd` est la version wrappée de `containerd` enmbarquée par Docker. 
+  * `dockerd` et `containerd` communique à l'aide d'un socket gRPC (par défaut dans `/var/run/docker/containerd/docker-containerd.sock`)
+  * `docker-containerd` peut lancer des conteneurs grâce à `runc`
+* le processus `docker-containerd-shim` permet de conserver la communication entre le conteneur et `¢ontainerd`
+  * cela permet de continuer à effectuer des actions ou récolter des informations sur le conteneurs pendant son exécution
+  * les informations utilisées par le `shim` sont facilement mis en évidence sur la ligne (utilisation du même socket gRPC et de `runc` pour lancer le conteneur)
+
 # Questions récurrentes
 #### **Est-ce qu'un conteneur est moins secure qu'une VM ?**
 Comme dit plus haut, ce n'est simplement pas comparable. Les deux reposent sur des concepts fondamentalement différents. De plus, dans la quasi-totalité des cas, l'hôte de conteneurisation est une VM. La conteneurisation n'est donc simplement qu'un niveau d'isolation supplémentaire.   
@@ -400,8 +446,6 @@ Une réaction qui peut être adoptée est de mixer les deux, pour des usages dif
 - machines dans le cloud, hardware abstrait, conteneurisation dans de la VM
 
 *"Generally speaking, low latency apps do better in-house, while capacity optimization, mixed workloads, and disaster recovery favor virtualization." from [here](https://morpheusdata.com/blog/2017-04-28-the-drawbacks-of-running-containers-on-bare-metal-servers)*
-
-## Containers, Runtimes, Docker
 
 # Sécurité et bonnes pratiques Docker
 ## Sécurité du démon Docker
