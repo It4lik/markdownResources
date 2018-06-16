@@ -425,7 +425,7 @@ Notons que toutes les données relatives aux conteneurs (réseaux, images, conte
 
 `systemd` est un applicatif qui a été largement adopté par les grandes distributions GNU/Linux (Debian, Ubuntu, RedHat, Arch, etc.). C'est un démon qui sert de système d'init, et se charge d'exécuter et permettre la gestion d'autres services du système. 
 
-Son fonctionnement est complexe, mais nous allons nous attarder que sur certains éléments en rapport avec noter sujet. 
+Son fonctionnement est complexe, mais nous allons nous attarder que sur certains éléments en rapport avec notre sujet. 
 
 `systemd` gère les différents composants du système (démons système, devices, point de montage, etc.) en les définissant comme des *unités*. Une *unité systemd* de type *service* permet d'exécuter un processus dans un certain contexte. `systemd` gère nativement la limitation des ressources avec les `groups` et peut aussi utiliser certains `namespaces`.
 
