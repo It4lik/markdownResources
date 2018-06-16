@@ -314,7 +314,7 @@ Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'info
   * ``/proc/sys/vm/swappiness`` détermine un pourcentage à partir duquel la machine va commence à utiliser la swap en lieu et place de la RAM
 * un répertoire pour chacun des processus en cours d'exécution sur la machine, portant l'ID du processus pour nom
   * dans chacun de ces répertoire se trouve un sous-répertoire ``ns`` qui contient autant d'entrées que le processus a de `namespaces` (au max, 1 de chaque type)
-```
+
 **Chacun des processus peut être lancé dans un namespace `pid` différent. Ils feront alors partie d'une arborescence de processus différente.**
 
 #### > Explorer les namespaces : `nsenter`
