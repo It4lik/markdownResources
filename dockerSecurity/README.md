@@ -31,7 +31,7 @@ Aussi, avant de d'aller plus avant, j'aimerai discuter quelques faits dont il es
 * les conteneurs GNU/Linux reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages (isolation, limitation). Technologies qui ont bien muri, après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc. Un même niveau de confiance peut alors être accordé à la conteneurisation pure (comme la pratique Docker) qu'au kernel lui-même.
 * Docker sert notamment à déployer des applications, ainsi qu'à les exécuter et les rendre accessibles
   * le lancement d'applications est habituellement à la charge d'un outil dédié comme **`systemd`** (à l'aide des unités de services `systemd`)
-  * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root` (lecture/écriture de fichiers sensibles, écoute sur port inférieur à 1024, lancement d'applicatifs sous l'identité d'autres utilisateurs, etc.) C'est donc avec tout autant d'attention qu'on surveille un utilisateur sudo, qu'un utilisateur membre du gruope `docker`
+  * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root` (lecture/écriture de fichiers sensibles, écoute sur port inférieur à 1024, lancement d'applicatifs sous l'identité d'autres utilisateurs, etc.) C'est donc avec tout autant d'attention qu'on surveille un utilisateur sudo, qu'un utilisateur membre du groupe `docker`
   * le démon docker tourne avec `root`, **ce qui n'est pas le cas des conteneurs pris individuellement**. Un conteneur n'est qu'un unique processus, une simple ligne dans un ``ps``. De la même façon, `systemd` tourne sous `root`, mais les services qu'ils lancent peuvent posséder un utilisateur applicatif.
 * la conteneurisation ne fait qu'apporter un niveau d'isolation supérieur. Cela soulève un grand nombre nouvelles problématiques, mais, par nature, c'est simplement un nouveau système d'isolation applicative. Et donc une hausse du niveau de sécurité, par rapport à une application qui s'exécuterait directement au sein du système. **Par nature.**
 * le terme **conteneurs** désigne un concept, pas une technologie spécifique :
@@ -315,7 +315,6 @@ Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'info
 * un répertoire pour chacun des processus en cours d'exécution sur la machine, portant l'ID du processus pour nom
   * dans chacun de ces répertoire se trouve un sous-répertoire ``ns`` qui contient autant d'entrées que le processus a de `namespaces` (au max, 1 de chaque type)
 ```
-
 **Chacun des processus peut être lancé dans un namespace `pid` différent. Ils feront alors partie d'une arborescence de processus différente.**
 
 #### > Explorer les namespaces : `nsenter`
