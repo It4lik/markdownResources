@@ -56,7 +56,7 @@ Aussi, avant de d'aller plus avant, j'aimerai discuter quelques faits dont il es
   * [OCI : Open Container Initiative](#open-container-initiative)
 * [How do containers work ?](#how-do-containers-work-)
   * [Technologies noyau](#technologies-noyau)
-  * [Rentrons dans le détail...](#rentrons-un-peu-dans-le-détail)
+  * [Containers, Runtimes, Docker]()
 * [Questions récurrentes](#questions-récurrentes)
 * [Sécurité & bonnes pratiques Docker](#sécurité-et-bonnes-pratiques-docker)
   * [Le démon Docker](#sécurité-du-démon-docker)
@@ -400,6 +400,8 @@ Une réaction qui peut être adoptée est de mixer les deux, pour des usages dif
 - machines dans le cloud, hardware abstrait, conteneurisation dans de la VM
 
 *"Generally speaking, low latency apps do better in-house, while capacity optimization, mixed workloads, and disaster recovery favor virtualization." from [here](https://morpheusdata.com/blog/2017-04-28-the-drawbacks-of-running-containers-on-bare-metal-servers)*
+
+## Containers, Runtimes, Docker
 
 # Sécurité et bonnes pratiques Docker
 ## Sécurité du démon Docker
