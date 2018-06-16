@@ -215,7 +215,70 @@ Pour jouer avec les namespaces :
 * `unshare`, interface directe vers l'appel système du même nom : permet de créer des namespaces
 * `nsenter` permet de rentrer dans un namespace (et d'y exécuter des processus)
 
+#### Explorer les namespaces : `nsenter`
+
+Il est possible grâce à ``nsenter`` de rentrer littéralement dans un namespace et d'y exécuter du code. Il est par exemple possible d'exécuter un simple ``ps -ef`` en utilisant un namespace PID totalement isolé. Nous ne verrions alors que les processus de ce namespace.
+
+Un cas d'utilisation de ``nsenter`` qui est très récurrent lors de la construction de conteneurs est l'utilisation de ``docker exec``. Cette commande exécute une commande dans un conteneur. Or, **un conteneur n'est qu'un processus, auquel on a attribué certaines capabilities, lancé par un utilisateur UNIX du système**, (`root` par défaut), **qui utilise des `namespaces` isolés et dont l'accès aux ressources est régi par les `cgroups`.** Donc en réalité, ``docker exec`` exécute un ``nsenter`` avec des options préconfigurées.
+
+Petite expérience pour démontrer tout ça :
+```shell
+# Lancement d'un conteneur Alpine qui attend
+$ docker run -d alpine sleep 99999
+f9ddf5ea51f11d46478aa4265f921c069180c2ac3251713640d628367ae5ba0a
+
+# Récupération de son PID
+$ docker inspect $(docker ps -lq) -f '{{ .State.Pid }}'
+19307
+$ ps -ef | grep $(!!)
+ps -ef | grep $(docker inspect $(docker ps -lq) -f '{{ .State.Pid }}')
+root     19307 19290  0 14:45 ?        00:00:00 sleep 999999
+
+# 19307 est le PID de sleep. 19290 est le PID du conteneur :
+$ ps -ef | grep 19290
+root     19290   704  0 14:45 ?        00:00:00 docker-containerd-shim f9ddf5ea51f11d46478aa4265f921c069180c2ac3251713640d628367ae5ba0a /var/run/docker/libcontainerd/f9ddf5ea51f11d46478aa4265f921c069180c2ac3251713640d628367ae5ba0a docker-runc
+
+# Maintenant, nous voulons exécuter un ps -ef dans le conteneur. Deux possibilités : nsenter ou docker exec. Nous allons ici montrer qu'ils sont équivalents
+$ docker exec $(docker ps -lq) ps -ef
+PID   USER     TIME   COMMAND
+    1 root       0:00 sleep 999999
+   35 root       0:00 ps -ef
+$ sudo nsenter -t $(docker inspect --format '{{ .State.Pid }}' $(docker ps -lq)) -m -u -i -n -p -w /bin/ps -ef
+UID        PID  PPID  C STIME TTY          TIME CMD
+root         1     0  0 12:45 ?        00:00:00 sleep 999999
+root        73     0  0 13:03 ?        00:00:00 /bin/ps -ef
+```
+
+**On voit que l'isolation de l'arborescence de PIDs est bien fournie par les namespaces.** Et qu'elle est efficace : on ne voit que les processus du conteneur en question. Pas ceux d'éventuels autres conteneurs ou de l'hôte.
+
+Il en va de même pour tous les autres namespaces. C'est plutôt fun/intéressant de se balader dans /proc et /sys de toute façon. Et il est parfaitement possible de créer un conteneur à la main à base de syscalls `clone()` ou `unshare()`.
+
+#### Création de namespaces : `unshare`
+
+Il existe un appel système qui porte le même nom : `unshare()`. Ce dernier permet tout simplement de créer de toutes pièces un nouveau namespace, d'un type particulier. La binaire `unshare` utilise cet appel système et nous permet de lancer des processus dans de nouveaux namespaces. A noter qu'il est aussi possible de l'utiliser pour lancer des processus dans des namespaces existants.
+
+Les options de `unshare` permettent de choisir le type de namespace(s) que l'on va créer à la volée. Un des exemples les plus simples est de lancer un `bash` dans un namespace de type `net` (réseau). Par défaut, un namespace `net` vierge ne contient qu'une unique interface : la loopback.
+```shell
+$ unshare -n bash
+$ ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+```
+
+Il est possible de quasiment créer un conteneur tel que Docker le fait, en une unique commande `unshare` :
+```shell
+$ ps -ef
+UID        PID  PPID  C STIME TTY          TIME CMD
+root         1     0  0 18:18 pts/0    00:00:00 bash
+root         2     1  0 18:18 pts/0    00:00:00 ps -ef
+$ ip a
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+```
+Congratz, you basically just created a container. (`exit` ou `CTRL+D` pour quitter le shell, et donc, sortir du namespace nouvellement créé).
+
 ### capabilities
+
 **Les capabilities Linux sont les droits avec lesquels un processus est lancé.** `root` n'est pas un utilisateur magique. `root` n'a pas tous les droits. `root` est simplement un utilisateur qui a le pouvoir de lancer n'importe quel processus avec n'importe quelle capability.
 On en en trouve un certain nombre (dépend du système, on en trouve souvent + de 35). Parmi lesquelles on a par exemple :
 * ***CAP_SYS_PTRACE*** : permet d'utiliser ```ptrace``` et ```kcmp```
@@ -261,7 +324,8 @@ Jouer avec les capas :
 * `setcap` et `getcap`
 * `capsh`
 
-Mise en évidence : 
+### Mise en évidence
+
 ```shell
 # logged as an unprivileged (but sudo) user
 $ /bin/ping 127.0.0.1
@@ -299,8 +363,7 @@ super_net_ns
 $ ip netns exec super_net_ns # permet d'exécuter des commandes dans le namespace
 $ ip netns exec super_net_ns ip a # par exemple
 ```
-### Rentrons un peu dans le détail...
-#### > Théorie : /proc et /sys
+### Un mot sur `/proc` et `/sys`
 Avant de se pencher sur les différents drivers réseau et les différents cas d'utilisation auxquels ils répondent, par exemple, il est nécessaire de discuter un peu du fonctionnement du réseau pour un conteneur, ou en fait, plus globalement, pour une machine GNU/Linux.
 
 Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'occurrence, comme **la totalité des fonctionnalités élémentaires d'un système moderne** -des fonctionnalités comme le réseau- **sont gérées dans le kernelspace**. Des appels systèmes sont à disposition pour pouvoir les manipuler. Mais en explorant les deux pseudo-filesystems que sont **/proc** et **/sys**, on peut obtenir énormément d'informations (en réalité, tout est là, donc c'est ici que l'on pourra obtenir le plus d'informations sur le réseau. Les commandes comme ``ip`` ou ``ifconfig`` ou comme ``hostname`` ne font que piocher à un moment ou un autre dans ces données).
@@ -316,68 +379,6 @@ Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'info
   * dans chacun de ces répertoire se trouve un sous-répertoire ``ns`` qui contient autant d'entrées que le processus a de `namespaces` (au max, 1 de chaque type)
 
 **Chacun des processus peut être lancé dans un namespace `pid` différent. Ils feront alors partie d'une arborescence de processus différente.**
-
-#### > Explorer les namespaces : `nsenter`
-
-Il est possible grâce à ``nsenter`` de rentrer littéralement dans un namespace et d'y exécuter du code. Il est par exemple possible d'exécuter un simple ``ps -ef`` en utilisant un namespace PID totalement isolé. Nous ne verrions alors que les processus de ce namespace.
-
-Un cas d'utilisation de ``nsenter`` qui est très récurrent lors de la construction de conteneurs est l'utilisation de ``docker exec``. Cette commande exécute une commande dans un conteneur. Or, **un conteneur n'est qu'un processus, auquel on a attribué certaines capabilities, lancé par un utilisateur UNIX du système**, (`root` par défaut), **qui utilise des `namespaces` isolés et dont l'accès aux ressources est régi par les `cgroups`.** Donc en réalité, ``docker exec`` exécute un ``nsenter`` avec des options préconfigurées.
-
-Petite expérience pour démontrer tout ça :
-```shell
-# Lancement d'un conteneur Alpine qui attend
-$ docker run -d alpine sleep 99999
-f9ddf5ea51f11d46478aa4265f921c069180c2ac3251713640d628367ae5ba0a
-
-# Récupération de son PID
-$ docker inspect $(docker ps -lq) -f '{{ .State.Pid }}'
-19307
-$ ps -ef | grep $(!!)
-ps -ef | grep $(docker inspect $(docker ps -lq) -f '{{ .State.Pid }}')
-root     19307 19290  0 14:45 ?        00:00:00 sleep 999999
-
-# 19307 est le PID de sleep. 19290 est le PID du conteneur :
-$ ps -ef | grep 19290
-root     19290   704  0 14:45 ?        00:00:00 docker-containerd-shim f9ddf5ea51f11d46478aa4265f921c069180c2ac3251713640d628367ae5ba0a /var/run/docker/libcontainerd/f9ddf5ea51f11d46478aa4265f921c069180c2ac3251713640d628367ae5ba0a docker-runc
-
-# Maintenant, nous voulons exécuter un ps -ef dans le conteneur. Deux possibilités : nsenter ou docker exec. Nous allons ici montrer qu'ils sont équivalents
-$ docker exec $(docker ps -lq) ps -ef
-PID   USER     TIME   COMMAND
-    1 root       0:00 sleep 999999
-   35 root       0:00 ps -ef
-$ sudo nsenter -t $(docker inspect --format '{{ .State.Pid }}' $(docker ps -lq)) -m -u -i -n -p -w /bin/ps -ef
-UID        PID  PPID  C STIME TTY          TIME CMD
-root         1     0  0 12:45 ?        00:00:00 sleep 999999
-root        73     0  0 13:03 ?        00:00:00 /bin/ps -ef
-```
-
-**On voit que l'isolation de l'arborescence de PIDs est bien fournie par les namespaces.** Et qu'elle est efficace : on ne voit que les processus du conteneur en question. Pas ceux d'éventuels autres conteneurs ou de l'hôte.
-
-Il en va de même pour tous les autres namespaces. C'est plutôt fun/intéressant de se balader dans /proc et /sys de toute façon. Et il est parfaitement possible de créer un conteneur à la main à base de syscalls `clone()` ou `unshare()`.
-
-#### > Création de namespaces : `unshare`
-
-Il existe un appel système qui porte le même nom : `unshare()`. Ce dernier permet tout simplement de créer de toutes pièces un nouveau namespace, d'un type particulier. La binaire `unshare` utilise cet appel système et nous permet de lancer des processus dans de nouveaux namespaces. A noter qu'il est aussi possible de l'utiliser pour lancer des processus dans des namespaces existants.
-
-Les options de `unshare` permettent de choisir le type de namespace(s) que l'on va créer à la volée. Un des exemples les plus simples est de lancer un `bash` dans un namespace de type `net` (réseau). Par défaut, un namespace `net` vierge ne contient qu'une unique interface : la loopback.
-```shell
-$ unshare -n bash
-$ ip a
-1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-```
-
-Il est possible de quasiment créer un conteneur tel que Docker le fait, en une unique commande `unshare` :
-```shell
-$ ps -ef
-UID        PID  PPID  C STIME TTY          TIME CMD
-root         1     0  0 18:18 pts/0    00:00:00 bash
-root         2     1  0 18:18 pts/0    00:00:00 ps -ef
-$ ip a
-1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN group default qlen 1
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-```
-Congratz, you basically just created a container. (`exit` ou `CTRL+D` pour quitter le shell, et donc, sortir du namespace nouvellement créé).
 
 # Questions récurrentes
 #### **Est-ce qu'un conteneur est moins secure qu'une VM ?**
