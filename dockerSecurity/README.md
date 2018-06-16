@@ -57,6 +57,7 @@ Aussi, avant de d'aller plus avant, j'aimerai discuter quelques faits dont il es
 * [How do containers work ?](#how-do-containers-work-)
   * [Technologies noyau](#technologies-noyau)
   * [Containers, Runtimes, Docker](#containers-runtimes-docker)
+  * [Un mot sur `systemd`](#un-mot-sur-systemd)
 * [Questions récurrentes](#questions-récurrentes)
 * [Sécurité & bonnes pratiques Docker](#sécurité-et-bonnes-pratiques-docker)
   * [Le démon Docker](#sécurité-du-démon-docker)
@@ -199,7 +200,7 @@ Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
   * arborescence de processus
   * `ps` va retourne des informations du `ns` PID courant
 * ***cgroup***
-  * on parle bel et bien ici d'un `namespace` de type cgroup
+  * on parle bel et bien ici d'un `namespace` de type *cgroup*
   * permet de lier un processus à des `cgroups`, isolés de leurs homologues
 
 Le noyau est donc capable de gérer deux (ou plus) arborescences de processus totalement indépendantes.
@@ -382,7 +383,7 @@ Un conteneur (ou *container* en anglais) est un outil, faisant appel à des méc
 
 Lorsqu'il s'agit de la conteneurisation, le *runtime* fait référence à l'outil (ou l'ensemble d'outils) permettant d'abstraire les mécanismes système vis-à-vis de l'utilisateur. Aujourd'hui, on distingue deux types de runtime : 
 * un outil permettant de gérer les conteneurs eux-mêmes de façon individuelle
-  * abstraction des *namespaces*, *cgroups*, et *capabilities*, entre autres
+  * abstraction des `namespaces`, `cgroups`, et *capabilities*, entre autres
 * un outil permettant de gérer l'environnement de conteneurisation
   * gestion d'images, de réseau, de stockage
 
@@ -392,7 +393,7 @@ Lorsqu'il s'agit de la conteneurisation, le *runtime* fait référence à l'outi
 
 L'architecture de base de Docker consiste en un démon qui écoute sur un socket (UNIX ou TCP), afin de créer des conteneurs. Le binaire `docker` permet de passer des requêtes vers l'API exposée par le démon.
 
-Docker (sous GNU/Linux) utilise comme runtime par défaut [`¢ontainerd`](https://containerd.io/) qui embarque [`runc`](https://github.com/opencontainers/runc). `¢ontainerd` est un démon qui écoute sur un socket, c'est lui qui est chargé de recevoir les ordres utilisateur (`docker run` = "lance un conteneur !"). Lorsqu'un conteneur est lancé, `runc` est utilisé afin de créer l'environnement d'exécution bas-niveau du conteneur (*namespaces*, *cgroups*, et *capabilities*). La communication entre `¢ontainerd` est le conteneur est maintenu grâce un processus `shim`.
+Docker (sous GNU/Linux) utilise comme runtime par défaut [`¢ontainerd`](https://containerd.io/) qui embarque [`runc`](https://github.com/opencontainers/runc). `¢ontainerd` est un démon qui écoute sur un socket, c'est lui qui est chargé de recevoir les ordres utilisateur (`docker run` = "lance un conteneur !"). Lorsqu'un conteneur est lancé, `runc` est utilisé afin de créer l'environnement d'exécution bas-niveau du conteneur (`namespaces`, `cgroups`, et *capabilities*). La communication entre `¢ontainerd` est le conteneur est maintenu grâce un processus `shim`.
 
 Mise en évidence : 
 ```shell
@@ -418,17 +419,44 @@ $ ls /var/run/docker/runtime-runc/moby
   * cela permet de continuer à effectuer des actions ou récolter des informations sur le conteneurs pendant son exécution
   * les informations utilisées par le `shim` sont facilement mis en évidence sur la ligne (utilisation du même socket gRPC et de `runc` pour lancer le conteneur)
 
+Notons que toutes les données relatives aux conteneurs (réseaux, images, conteneurs, etc.) sont stockées dans `/var/lib/docker` par défaut, sous l'identité de `root`.
+
+## Un mot sur `systemd`
+
+`systemd` est un applicatif qui a été largement adopté par les grandes distributions GNU/Linux (Debian, Ubuntu, RedHat, Arch, etc.). C'est un démon qui sert de système d'init, et se charge d'exécuter et permettre la gestion d'autres services du système. 
+
+Son fonctionnement est complexe, mais nous allons nous attarder que sur certains éléments en rapport avec noter sujet. 
+
+`systemd` gère les différents composants du système (démons système, devices, point de montage, etc.) en les définissant comme des *unités*. Une *unité systemd* de type *service* permet d'exécuter un processus dans un certain contexte. `systemd` gère nativement la limitation des ressources avec les `groups` et peut aussi utiliser certains `namespaces`.
+
+Pour ce qui est des `cgroups`, `systemd` crée ce qu'il appelle des `slices`, qui sont simplement des catégories dans laquelle mettre les *unités*. Autrement dit, afin de mettre des **processus dans des cgroups**, `systemd` met des **unités dans des slices**. Typiquement il existe un slice `system` et un slice `user` sur la plupart des systèmes (visualisation avec les binaires `systemd-cgls` et `systemd-cgtop`)
+
+Autrement dit, il est parfaitement possible, de façon très simple, de créer un `conteneur systemd` en créant une *unité* de type *service* restreinte. 
+
+Il existe plusieurs façons de procéder :
+* utilisation de `systemd-run`
+  * permet d'exécuter une commande dans une *unité* de type `service`
+  * possibilité avec `--slice` d'ajouter le service à un *slice* du système.
+* utilisation de `systemd-nspawn`
+  * permet d'exécuter un processus dans un environnement isolé
+  * utilisation des `namespaces` pour l'isolation
+  * permet de rejoindre un *slice* du système avec `--slice`
+* utilisation d'un fichier définissant une *unité* de type *service*
+  * permet un contrôle très fin des `cgroups`, `namespaces` et `capabilities` du processus
+
+Si l'OS est équipé de `systemd`, ce dernier peut être utilisé afin d'obtenir des informations sur l'environnement de conteneurisation (surtout via le monitoring des *cgroups*)
+
 # Questions récurrentes
 #### **Est-ce qu'un conteneur est moins secure qu'une VM ?**
-Comme dit plus haut, ce n'est simplement pas comparable. Les deux reposent sur des concepts fondamentalement différents. De plus, dans la quasi-totalité des cas, l'hôte de conteneurisation est une VM. La conteneurisation n'est donc simplement qu'un niveau d'isolation supplémentaire.   
-
+Comme dit plus haut, ce n'est simplement pas comparable. Le terme *conteneur* désigne un concept, alors que *machine virtuelle* fait appel à des mécanismes de virtualisation précis. D'un point de vue purement technique, et lorsqu'il s'agit de conteneurs GNU/Linux, on peut considérer la conteneurisation comme un niveau de sécurité supplémentaire, faisant appel à des mécanismes de sécurité mûrs et robustes, nativement présent dans le kernel.
 
 #### **Si un attaquant exploite une vulnérabilité exposée par un conteneur, a-t-il une main-mise totale sur la machine sous-jacente ?**
 Cela dépend complètement du type de vulnérabilité.
 De façon générale, ça n'expose ni plus ni moins le système qu'avec un applicatif "classique" (lancé via un binaire, ou service comme *systemd*, directement depuis le système hôte (eg. directement dans les `namespaces` "principaux" de l'hôte)).
 En effet, une vulnérabilité kernel qui affecte un conteneur rendra l'hôte tout aussi vulnérable car les deux partagent **"physiquement"** le même kernel.
 A l'inverse, une vulnérabilité applicative (par exemple, vulnérabilité dans la version d'Apache utilisée) n'exposera pas plus le système qu'avant. Voire moins, ceci dépend de la configuration mise en place (démon, image, conteneur, cf les parties dédiées, plus bas).
-Au mieux, l'attaquant sera strictement confiné dans le conteneur. Au pire, il aura une totale main-mise sur le système sous-jacent (qui, pour rappel, est une VM...). A mi-chemin, il sera capable de se rendre compte qu'il est dans un conteneur, et éventuellement obtenir des informations sur le système hôte.    
+Au mieux, l'attaquant sera strictement confiné dans le conteneur. Au pire, il aura une totale main-mise sur le système sous-jacent (qui, pour rappel, est une VM...). A mi-chemin, il sera capable de se rendre compte qu'il est dans un conteneur, et éventuellement obtenir des informations sur le système hôte. 
+Nous présenterons par la suite des techniques permettant d'atténuer énormément les risques liés à l'exploitation de vulnérabilités applicatives dans le conteneur. 
 
 #### **L'hôte c'est vraiment une VM ?** *ou* **Ca run sur du bare-metal aussi nan ?**  
 On trouve effectivement un engouement autour de la "conteneurisation bare-metal". Dans l'état de l'art actuel, on parle d'installer un OS de type GNU/Linux en bare-metal, puis le démon Docker et ainsi d'être plus proche du matériel (pas de couche de virtualisation de type VM). Ceci a plusieurs effets :
