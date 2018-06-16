@@ -431,7 +431,7 @@ Son fonctionnement est complexe, mais nous allons nous attarder que sur certains
 
 Pour ce qui est des `cgroups`, `systemd` crée ce qu'il appelle des `slices`, qui sont simplement des catégories dans laquelle mettre les *unités*. Autrement dit, afin de mettre des **processus dans des cgroups**, `systemd` met des **unités dans des slices**. Typiquement il existe un slice `system` et un slice `user` sur la plupart des systèmes (visualisation avec les binaires `systemd-cgls` et `systemd-cgtop`)
 
-Autrement dit, il est parfaitement possible, de façon très simple, de créer un `conteneur systemd` en créant une *unité* de type *service* restreinte. 
+Autrement dit, il est parfaitement possible, de façon très simple, de créer un *conteneur `systemd`* en créant une *unité* de type *service* restreinte. 
 
 Il existe plusieurs façons de procéder :
 * utilisation de `systemd-run`
