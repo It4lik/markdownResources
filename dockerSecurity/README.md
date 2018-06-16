@@ -6,11 +6,11 @@ Avant d'aller plus loin, il est nécessaire de préciser que **nous nous intére
 * Docker a principalement muri au sein de l'écosystème GNU/Linux, c'est sur cette plateforme qu'il est aujourd'hui le plus stable et robuste
 * c'est le choix le plus flexible : l'utilisateur pouvant avoir une totale maîtrise du fonctionnement de l'outil
 
-Aussi, il est très difficile de couvrir tous les aspects de sécurité autour de la conteneurisation, ou même de Docker spécifiquement. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou la réduction de la surface d'exposition. Mais nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore à certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
+Aussi, il est très difficile de couvrir tous les facettes de la sécurité autour de la conteneurisation, ou même de Docker spécifiquement. Nous nous intéresserons ici aux aspects incontournables touchant directement à la limitation de droits ou la réduction de la surface d'exposition. Nous discuterons aussi de certaines problématiques autour du stockage, de la sauvegarde (disponibilité des données) ou encore de certaines autres autour de problèmes cryptographiques (accès sécurisé à un démon, signature des images, etc.).
 
 Bien que n'étant pas sa vocation première, nous nous efforcerons dans ce document de revoir certains aspects purement techniques qu'il est absolument indispensable de connaître et comprendre si on souhaite réellement appréhender la sécurité autour de Docker.
 
-Ce document n'a pas non plus pour vocation d'être un guide pour sécuriser un environnement Docker ou utilisant de la conteneurisation. Nous ne venons ici que mettre en évidence certaines problématiques et y apporter des éléments de réponse. Plusieurs mitigation techniques seront malgré tout proposées tout au long du document. 
+Ce document n'a pas non plus pour vocation d'être un guide pour sécuriser un environnement Docker ou utilisant de la conteneurisation. Nous ne venons ici que mettre en évidence certaines problématiques et y apporter des éléments de réponse. Plusieurs techniques d'atténuation des risques seront malgré tout proposées tout au long du document. 
 
 Enfin, il est attendu de la part du lecteur de connaître un minimum la conteneurisation à l'aide de Docker et son écosystème (bien que beaucoup d'éléments soient présentés sur le tas).
 
@@ -21,29 +21,33 @@ Avant toute chose, il est nécessaire de présenter la conteneurisation, **d'un 
   * en étant indépendant de la plateforme (du moment que la solution de conteurisation est compatible)
   * en proposant un moyen unifié de gérer les applications
 * faciliter le **développement collaboratif** 
-  * le code, une fois packagé dans un conteneur (ou plutôt, une image) est transportable d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
+  * le code, une fois packagé dans un conteneur (ou plus souvent, une *image*) est transportable d'un poste à un autre, sans se préocupper ni de l'OS ni des librairies nécessaires
 * accéder à un **plus grand niveau de sécurité**
   * ajoute un niveau d'isolation (basés sur des mécanismes kernel (GNU/Linux ou Windows) ou une couche de virtualisation)
   * les conteneurs sont souvent stateless *par définition* (reproductibilité, conformité)
 
-Aussi, avant de développer, j'aimerai apporter quelques faits. Les mettre en avant dans l'introduction est un choix purement subjectif, mais je pense qu'il est primordial de commencer par réfléchir à ces idées :
+Aussi, avant de d'aller plus avant, j'aimerai discuter quelques faits dont il est préférable d'avoir vent. Placer cette discussion en introduction est subjectif, mais cela nous permettra de bâtir un raisonnement basé sur un socle commun.
 
-* les conteneurs GNU/Linux reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages (isolation, limitation). Si **aujourd'hui** (après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc.), un même niveau de confiance peut être donné à la conteneurisation pure (comme la pratique Docker) qu'au kernel lui-même.
-* Docker sert notamment à déployer des applications, ainsi qu'à les exécuter et les rendre accessibles HEEEEEEEERE
-  * le lancement d'applications est habituellement à la charge de **`systemd`** (à l'aide des unités de services `systemd`)
-  * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root`
-  * le démon docker tourne avec `root`, **ce qui n'est pas le cas des conteneurs pris individuellement**. Un conteneur n'est qu'un unique processus, une simple ligne dans un ``ps``.   
-  De la même façon, `systemd` tourne sous `root`, mais les services qu'ils lancent peuvent posséder un utilisateur applicatif.
-* la conteneurisation ne fait qu'apporter un niveau d'isolation supérieur. Bien sûr que cela soulève un nombre incalculable de nouvelles problématiques. Mais par nature, c'est simplement un nouveau système  d'isolation applicative. Et donc une hausse du niveau de sécurité. **Par nature.**
-* il est **purement inutile** de comparer la VM et les conteneurs sur le plan de la sécurité
-  * les deux reposent sur des principes fondamentalement différents
+* les conteneurs GNU/Linux reposent **exclusivement** sur des technologies kernel qui existaient déjà auparavant, qui étaient déjà utilisées pour les mêmes usages (isolation, limitation). Technologies qui ont bien muri, après plusieurs années de dév, rapprochement de la Linux Foundation, création de standards, sensibilisation globale, etc. Un même niveau de confiance peut alors être accordé à la conteneurisation pure (comme la pratique Docker) qu'au kernel lui-même.
+* Docker sert notamment à déployer des applications, ainsi qu'à les exécuter et les rendre accessibles
+  * le lancement d'applications est habituellement à la charge d'un outil dédié comme **`systemd`** (à l'aide des unités de services `systemd`)
+  * **il est admis qu'on ait besoin des droits `root` pour systemd ? Alors pourquoi pas pour Docker ?...** C'est exactement la même surface d'exposition (lorsqu'on parle du lancement d'application), et c'est pour strictement les mêmes raisons qu'ils ont besoin des droits `root` (lecture/écriture de fichiers sensibles, écoute sur port inférieur à 1024, lancement d'applicatifs sous l'identité d'autres utilisateurs, etc.)
+  * le démon docker tourne avec `root`, **ce qui n'est pas le cas des conteneurs pris individuellement**. Un conteneur n'est qu'un unique processus, une simple ligne dans un ``ps``. De la même façon, `systemd` tourne sous `root`, mais les services qu'ils lancent peuvent posséder un utilisateur applicatif.
+* la conteneurisation ne fait qu'apporter un niveau d'isolation supérieur. Cela soulève un grand nombre nouvelles problématiques, mais, par nature, c'est simplement un nouveau système d'isolation applicative. Et donc une hausse du niveau de sécurité, par rapport à une application qui s'exécuterait directement au sein du système. **Par nature.**
+* le terme **conteneurs** désigne un concept, pas une technologie spécifique :
+  * les **GNU/Linux containers** (comme Docker) reposent sur des mécanismes du kernel GNU/Linux
+  * il existe des conteneurs qui **sont des VMs**, à l'instar de ce que met en place Rocket ou KataContainers
+* il est souvent **peu pertinent** de comparer la VM et les conteneurs sur le plan de la sécurité
+  * un **conteneur** *peut* **être une VM** comme dit au dessus
+  * les conteneurs GNU/Linux et la vitualisation reposent sur des concepts fondamentalement différents
   * ce ne sont pas les mêmes usages ! Donc pas les mêmes surfaces d'exposition, pas les mêmes problématiques, etc.
-  * **l'hôte de conteneurisation EST UNE VM** : le conteneur n'apporte qu'un niveau supérieur d'isolation, encore une fois.
-  * on peut bien sûr effectuer la comparaison avec la VM, parce qu'on connaît bien : ça peut aider à avoir une vision globale. Mais **pour juger du niveau de sécurité des conteneurs de manière effective, c'est un raisonnement depuis zéro qu'il faut adopter et non pas un raisonnement comparatif**.
-* il n'y aucune raison de mettre à la trappe l'isolation réseau (permettant d'isoler des services ayant un niveau de confidentialité différents, ou des surfaces d'exposition plus ou moins grandes etc.) si on utilise de la conteneurisation.
-  * une application qui tournait sur une VM dans tel sous-réseau, qui est "conteneurisée" devra tourner dans le même sous-réseau, sur un hôte de conteneur éventuellement dédié.
-  * dans ce cas-là il n'y AUCUN changement, si ce n'est : facilité de mise-à-jour, de packaging, de déploiement/redéploiement, de migration, etc
-  * je parle d'isolation réseau, mais il en va de même pour le stockage, la sauvegarde, etc.
+  * **l'hôte de conteneurisation EST -très souvent- UNE VM** : le conteneur n'apporte qu'un niveau supérieur d'isolation, encore une fois.
+  * une fois ces idées en tête, on peut comparer de façon fonctionnelle et technique la mise en place de conteneurs et VMs, cela pouvant aider à adopter un point de vue global. Mais **pour juger du niveau de sécurité des conteneurs de manière effective, c'est un raisonnement depuis zéro qu'il faut adopter et non pas un raisonnement comparatif**.
+* la conteneurisation n'empêche pas de continuer à adopter les bonnes pratiques habituelles :
+  * segmentation/isolation réseau
+  * amélioration de la disponibilité des données (sauvegarde, redondance du stockage)
+  * principe du moindre privilège
+  * utilisation d'outils de sécurité dédiés
 
 # Sommaire
 * [Sources](#sources)
@@ -99,8 +103,9 @@ La majeure partie des informations trouvables dans ce document se trouvent dans 
   - [Red Hat Container Security Guide](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/)
 * [Documentation Docker](https://docs.docker.com/)
 * [Documentation Kernel](https://www.kernel.org)
+* LWN.net avec des discussions comme [celle-ci au sujet des cgroups](https://lwn.net/Articles/679786/)
 * la commande ```man``` (trouvable aussi [ici](http://man7.org/linux/man-pages/man7/))
-  * ce sont les documentations les plus simples et complètes sur les fonctionnalités du kernel (les `man`s ne documentent pas que des binaires, mais aussi des fonctionnalité kernel, des concepts, etc.)
+  * ce sont les documentations les plus simples et complètes sur les fonctionnalités du kernel (les `man`s ne documentent pas que des binaires, mais aussi des fonctionnalités kernel, des concepts, etc.)
   * plus clair que le `man`, c'est lire le code.
   * ``man cgroups``, ``man namespaces``, etc.
 * [Wiki de la Linux Foundation](https://wiki.linuxfoundation.org)
@@ -108,6 +113,8 @@ La majeure partie des informations trouvables dans ce document se trouvent dans 
 * Recommandations de sécurité
   * [par Delve Labs](https://www.delve-labs.com/articles/docker-security-production-2/)
   * [par GDSSecurity](https://github.com/GDSSecurity/Docker-Secure-Deployment-Guidelines)
+* Discussions autour de la sécurité
+  * [Conférence du SSTIC](https://www.sstic.org/2018/presentation/audit_de_securite_docker/) au sujet des audits en environnements de conteneurisation
 
 Certains autres documents constituent des lectures très intéressantes autour des conteneurs :
 * Cisco et RedHat : ["Linux Containers: Why They’re in Your Future and What Has to
@@ -117,42 +124,39 @@ Happen First"](https://www.cisco.com/c/dam/en/us/solutions/collateral/data-cente
 **Ce document n'est donc qu'une synthèse d'un savoir communautaire.**
 
 # Communauté & standards
-Cette partie est volontairement placée en première place. Un outil ne peut ni être sécurisé, ni être pérenne, ni continuer à évoluer avec son temps s'il n'est pas entouré d'une communauté.   
+Cette partie est volontairement placée en première place. L'aspect communautaire d'une solution est souvent une arme très puissante pour la pérenniser.
 L'établissement de standards est aussi très important : ils permettent l'abstraction d'une technologie en particulier au profit de concepts directeurs. C'est aussi dans ces standards que sont établis les bonnes pratiques, les mécanismes fondamentaux et les principaux aspects de sécurité.
 
 ## Un peu d'histoire
-*A noter que ce travail n'a été possible que grâce aux avancées de LXC (LinuX Containers). En effet, LXC a réussi où OpenVZ avait échoué : les deux étaient des technologies permettant d'utiliser des conteneurs. mais OpenVZ avait besoin d'un patch kernel pour fonctionner. Une fois Les mécanismes de LXC mergés dans le kernel Linux mainline, le terrain était propice au développement d'une solution comme Docker.*
+La conteneurisation telle qu'on la connaît aujourd'hui est le fruit de multiples avancées ces dernières années. On considère souvent l'appel système *chroot* (UNIX) comme le père des conteneurs. En effet, celui-ci permet, au sein d'un système de fichiers, de changer l'emplacement de la racine de façon arbitraire.
+Les conteneurs avec lesquels nous sommes familiers sont nés aux alentours de 2008, avec LXC (développé par IBM). LXC utilisant les mêmes technologies kernel qui sont utilisées aujourd'hui par Docker. 
+
+Cet environnement technique préparé depuis plusieurs années à créer un terrain propice pour le développement d'un outil plus accessible, outil qu'a été Docker. 
 
 A l'origine, la société **Docker avait mis sur pied sa propre librairie afin de pouvoir utiliser des conteneurs**. Ce n'est ni plus ni moins qu'une interface (au sens premier du terme) vers le kernel, qui expose une API simplifiée et dédiée à la conteneurisation.
-De façon simple, avant l'existence de telles librairies (et `libcontainer` **n'était pas** la première), il était nécessaire de créer manuellement les `cgroups` et `namespaces`, ainsi que de les articuler entre eux, afin d'avoir un conteneur. Avec une telle lib, tout ce travail a été simplifié.
+De façon simple, avant l'existence de telles librairies (et `libcontainer` de Docker **n'était pas** la première), il était nécessaire de créer manuellement les `cgroups` et `namespaces`, ainsi que de les articuler entre eux, afin d'avoir un conteneur. Avec une telle lib, tout ce travail technique a été abstrait pour l'utilisateur, et donc, simplifié.
 
 La société a aussi mis à disposition **un outil CLI très puissant et clé-en-main**, permettant d'utiliser cette API.
 
-Mais, l'engouement autour de la Docker étant grandissant, et la croissance du nombre de client exponentielle (car répondant à un certain nombre de besoins, ce dont nous ne traiterons pas ici), d'autres engines de conteneurisation ont rapidement vu le jour.
+Mais, l'engouement autour de la Docker étant grandissant, et le nombre de prospects croissant de façon exponentielle (car répondant à un certain nombre de besoins, ce dont nous ne traiterons pas ici), d'autres runtimes de conteneurisation ont rapidement vu le jour.
 
 S'est alors rapidement posée **la question de la standardisation**. On ne parle plus de Docker, qui a révélé ces technologies au plus grand nombre, mais de la conteneurisation en général, dans le monde de demain. La question n'est en effet plus de savoir si les conteneurs seront là demain, on connaît la réponse et c'est oui. La question c'est : comment ?
 
 ## Open Container Initiative
-L'OCI est un projet de la Linux Foundation, s'inscrivant dans cette mouvance globale à vouloir standardiser un maximum de choses afin de permettre une évolution de l'informatique au sens large de façon simple et sans accrocs. On peut aussi par exemple noter l'[Open API Initiative](https://www.openapis.org/) qui s'inscrit dans ce même mouvement.
+L'OCI est un projet de la Linux Foundation, s'inscrivant dans cette mouvance globale de standardisation des usages techniques afin de permettre une évolution de l'informatique au sens large, de façon concrète, et sans accrocs. On peut aussi par exemple noter l'[Open API Initiative](https://www.openapis.org/) qui s'inscrit dans ce même mouvement.
 
-L'OCI propose donc des spécifications, des standards : pour les images de conteneurs, ou encore pour l'engine lui-même. Pour le runtime, on trouve par exemple la spécification [ici](https://github.com/opencontainers/runtime-spec) et son implémentation libre et open-source [ici](https://github.com/opencontainers/runc). L'implémentation porte le nom de ```runc``` et c'est désomais le runtime utilisé notamment par Docker. **Docker n'est plus, vive Docker.**
+L'OCI propose donc des spécifications, des standards : pour les images de conteneurs, ou encore pour le runtime lui-même. Pour le runtime, on trouve par exemple la spécification [ici](https://github.com/opencontainers/runtime-spec/blob/master/spec.md) et son implémentation libre et open-source [ici](https://github.com/opencontainers/runc). L'implémentation porte le nom de ```runc``` et c'est désormais le runtime utilisé par défaut par Docker (entre autres). **Docker n'est plus, vive Docker** (*Docker* ne désigne donc qu'un outil commercial).
 
-A noter que le projet est soutenu par de grands acteurs parmis lesquels Microsoft, IBM, Huawei, EMC, Docker, Dell, Google, HP, Goldman Sachs (hum hum...), Twitter, RedHat, etc.
+A noter que le projet est soutenu par de grands acteurs parmis lesquels Microsoft, IBM, Huawei, EMC, Docker, Dell, Google, HP, Goldman Saaaaaachs, Twitter, RedHat, etc.
 
-Ceci est déterminant pour l'avenir de la conteneurisation. En effet, le développement de la conteneurisation au sens large, est désormais encadré par une fondation qui est (à priori...) la plus indépendante possible d'autres organismes et acteurs majeurs du milieu informatique. Mais tout en bénéficiant de leur soutien : le projet n'est donc pas mené de manière isolée, et il ne sera pas le fruit de la volonté d'une unique entité  pour servir ses intérêts.
+Ceci est déterminant pour l'avenir de la conteneurisation. En effet, le développement de la conteneurisation au sens large, est désormais encadré par une fondation qui est (à priori...) la plus indépendante possible d'autres organismes et acteurs majeurs du milieu informatique. Mais tout en bénéficiant de leur soutien : le projet n'est donc pas mené de manière isolée, et il ne sera pas le fruit de la volonté d'une unique entité pour servir ses intérêts.
 
 **L'OCI cherche à faciliter la transition vers le monde des conteneurs, et surtout, à en pérenniser l'utilisation.**
-
-## OpenSource & Linux Foundation
-
-## Grands acteurs de l'IT
 
 # How do containers work ?
 
 Nous allons voir dans cette partie (purement technique) certaines des technologies qui rendent la conteneurisation telle qu'on la connaît possible.
-Cette partie n'est qu'une partie théorique et technique et n'est pas directement rattachée à la sécurité, mais est strictement indispensable pour discuter de problématiques de sécurité autour des conteneurs.
-
-**A noter que la plupart de ces éléments sont ENFIN présents dans la documentation Docker officielle. Enfin.**
+Cette partie n'est qu'une partie théorique et technique et n'est pas directement rattachée à la sécurité, mais est strictement indispensable pour discuter de problématiques de sécurité autour des conteneurs. Cela nous sert aussi de base commune pour ce qui est du vocabulaire.
 
 ## Technologies noyau
 Les `cgroups` et `namespaces` sont deux technologies kernel qui sont au centre de la conteneurisation.
@@ -160,7 +164,7 @@ Nous n'allons pas rentrer ici dans les détails, mais nous allons malgré tout p
 
 ### cgroups
 
-**Les `cgroups` permettent d'allouer des quantités de ressources à des groupes de processus** (ses fonctionnalités sont en réalité plus larges, mais nous n'en discuterons que très peu ici). Un `cgroup` est un groupe de processus qui sont soumis à des rgèles appelées "contrôleurs".
+**Les `cgroups` permettent de grouper et labelliser des processus, afin de leur allour une quantité de ressource limitée** (ses fonctionnalités sont en réalité plus larges, mais nous n'en discuterons que très peu ici). Un `cgroup` peut être limité en fonction de plusieurs *contrôleurs* (accès au CPU, aux devices, à la mémoire, etc.)
 Il existe un certain nombre de contrôleurs qui peut dépendre en fonction de la distribution (on en trouve 11 généralement). En voici quelques-uns (les principaux) afin d'avoir une idée de leur utilité :
 * ***cpuset*** : permet d'allouer un coeur processeur à un groupe de tâche
 * ***blkio*** : permet de limiter les actions de lecture ET d'écriture sur un périphérique de type bloc
@@ -170,11 +174,15 @@ Il existe un certain nombre de contrôleurs qui peut dépendre en fonction de la
 
 Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
 
-*A noter que la version 2 des `cgroups` n'a pas encore été adoptée, pour des problèmes de compatibilité. Voir [ici](https://github.com/opencontainers/runc/issues/654) et [ici](https://github.com/moby/moby/issues/16238)*.
+*A noter que la version 2 des `cgroups` n'a pas encore été adoptée, pour des problèmes de compatibilité. Voir [ici](https://github.com/opencontainers/runc/issues/654) et [ici](https://github.com/moby/moby/issues/16238), à suivre*.
+
+* pour jouer avec les cgroups :
+  * répertoire `/sys/fs/cgroup/`
+  * fichier `/proc/<PID>/cgroup` pour chaque processus
 
 ### namespaces
 **Les `namespaces` (ou ns) permettent d'isoler de manière effective des ressources.** Aux yeux des `namespaces` (et donc, du noyau), il existe un nombre limité de "ressources". La plupart ont une structure arborescente. Il en existe 6 :
-* ***réseau*** (ou network stack)
+* ***pile réseau*** (ou network stack)
   * carte réseau, interfaces, configuration, etc.
   * `ip address` ou `ifconfig` permettent de récupérer des informations du namespace courant
 * ***noms d'hôtes et de domaine*** (ou UTS)
@@ -194,13 +202,18 @@ Par défaut, à chaque conteneur lancé est créé un `cgroup` correspondant.
   * on parle bel et bien ici d'un `namespace` de type cgroup
   * permet de lier un processus à des `cgroups`, isolés de leurs homologues
 
-Le noyau est par exemple capable de gérer deux arborescences de processus totalement indépendantes.
+Le noyau est donc capable de gérer deux (ou plus) arborescences de processus totalement indépendantes.
 
 **NB:** même si tous les namespaces portent le nom de "namespace", ils ont TOUS un fonctionnement différent. Dans l'idée, ils servent bel et bien tous à isoler un jeu de ressources d'un autre, du même type, aux yeux du système. Cependant, par exemple, les namespaces `user` (doit inclure une gestion des capabilities par namespaces) et `mount` (inclut des mécanismes de scopes et de propagation des points de montage) ont un fonctionnement qui diffèrent beaucoup des autres.  
 
 **NB2:** un namespace continue d'exister :
 * tant qu'il est utilisé
 * tant qu'il existe un lien qui y fait référence (où que ce soit sur le système)
+
+Pour jouer avec les namespaces : 
+* répertoire `/proc/<PID>/ns/` qui contient des liens symboliques vers les namespaces (facilement identifiés par un ID numérique) utilisés par le processus ciblé
+* `unshare`, interface directe vers l'appel système du même nom : permet de créer des namespaces
+* `nsenter` permet de rentrer dans un namespace (et d'y exécuter des processus)
 
 ### capabilities
 **Les capabilities Linux sont les droits avec lesquels un processus est lancé.** `root` n'est pas un utilisateur magique. `root` n'a pas tous les droits. `root` est simplement un utilisateur qui a le pouvoir de lancer n'importe quel processus avec n'importe quelle capability.
@@ -213,15 +226,14 @@ On en en trouve un certain nombre (dépend du système, on en trouve souvent + d
 
 On reconnaît ici les superpouvoirs de `root`. Il est possible de visualiser les capabilities de chacun des processus lancés sur le système avec le binaire ```lscap``` rarement présent par défaut (quelque soit la distrib).
 
-A l'instar de n'importe quel autre processus du sysème, un conteneur se voit attribuer un certain nombre de capabilities. Il est possible lors du lancement d'un conteneur (`docker run`) d'en ajouter (`--cap-add`) ou d'en supprimer (`--cap-drop`).
+A l'instar de n'importe quel autre processus du sysème, un conteneur se voit attribuer un certain nombre de capabilities. Il est possible lors du lancement d'un conteneur Docker (`docker run`) d'en ajouter (`--cap-add`) ou d'en supprimer (`--cap-drop`).
 
 Une bonne façon de procéder lors du lancement d'un conteneur est de supprimer toutes les capabilities puis d'ajouter uniquement celles qui sont nécessaires :   
 ```shell
 $ docker run --cap-drop ALL --cap-add SYS_TIME --name whattimeisit alpine /bin/sh
 ```
 
-Les capabilities s'appliquent aussi aux binaires. On les manipule alors avec `setcap` et `getcap`. L'utilisation d'un setuid root est parfaitement équivalent à donner TOUTES les capabilities à ce binaire à l'aide de `setcap`.  
- Une autre façon de le dire est que `setcap` permet de donner de façon granulaire les capabilities à un binaire.
+Les capabilities s'appliquent aussi aux binaires. On les manipule alors avec `setcap` et `getcap`. L'utilisation d'un *setuid root* est parfaitement équivalent à donner TOUTES les capabilities à ce binaire à l'aide de `setcap`.  `setcap` est donc un `setuid root` mais beaucoup plus fin et granulaire.
 
 ```shell
 $ getcap /usr/bin/ping
@@ -230,7 +242,7 @@ $ getcap /usr/bin/ping
 
 Le mécanisme est le suivant :
 1. un utilisateur lance un binaire
-2. le kernel vérifie que l'utilisateur a les droits (DAC, MAC, autres)
+2. le kernel vérifie que l'utilisateur a les droits (mécanismes DAC, MAC, autres)
 3. en cas de succès, le kernel déduit les capabilities que possèdera le processus, en fonction :
   * des capabilities du binaire spécifié
   * des capabilities du processus appelant (souvent, un shell)
@@ -245,6 +257,30 @@ none *  # Fortement recommandé : désactive toutes les capas pour tous les user
 
 Extrait de la [documentation RedHat](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/docker_selinux_security_policy) : *"Capabilites constitute the heart of the isolation of containers. If you have used capabilites in the manner described in this guide, an attacker who does not have a kernel exploit will be able to do nothing even if they have root on your system."*
 
+Jouer avec les capas :
+* `setcap` et `getcap`
+* `capsh`
+
+Mise en évidence : 
+```shell
+# logged as an unprivileged (but sudo) user
+$ /bin/ping 127.0.0.1
+PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data.
+64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.098 ms
+
+$ getcap /bin/ping
+/bin/ping = cap_net_admin,cap_net_raw+p
+
+$ cp /bin/ping ./
+$ ./ping 127.0.0.1
+ping: socket: Operation not permitted
+$ getcap ./ping # outputs nothing
+$ sudo setcap cap_net_raw+ep ./ping
+$ ./ping 127.0.0.1
+PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data.
+64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.072 ms
+```
+
 ### netfilter
 Il existe un **framework kernel permettant de lui donner la fonction de firewall : c'est netfilter.**
 Par défaut, le démon Docker utilise grandement les fonctionnalités kernel de ```netfilter``` afin de fournir du réseau aux différents conteneurs dont il est responsable. Il est évidemment possible de les visualiser à l'aide de ```iptables``` (ou ```ebtables```). Afin de pouvoir gérer le trafic, le démon crée une interface virtuelle pour chaque "réseau Docker" (on peut visualiser les réseaux Docker avec ```docker network ls```).
@@ -252,13 +288,22 @@ Le majeure partie des règles permettent :
 * de forwarder du traffic vers un conteneur spécifique
 * de fermer certains ports
 
-**NB:** il existe un jeu de règles `netfilter` pour chaque namespace de type `net` (e.g. tous les conteneurs peuvent )
+**NB:** il existe un jeu de règles `netfilter` pour chaque namespace de type `net` (e.g. tous les conteneurs possèdent leurs propres stacks réseaux, règles firewall, etc.)
 
+Jouer avec namespaces réseau/netfilter :
+```shell
+$ ip netns add super_net_ns
+$ ls /var/run/netns/ # or ip netns list
+super_net_ns
+
+$ ip netns exec super_net_ns # permet d'exécuter des commandes dans le namespace
+$ ip netns exec super_net_ns ip a # par exemple
+```
 ### Rentrons un peu dans le détail...
 #### > Théorie : /proc et /sys
 Avant de se pencher sur les différents drivers réseau et les différents cas d'utilisation auxquels ils répondent, par exemple, il est nécessaire de discuter un peu du fonctionnement du réseau pour un conteneur, ou en fait, plus globalement, pour une machine GNU/Linux.
 
-Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'occurrence, comme **la totalité des fonctionnalités élémentaires d'un système moderne** -des fonctionnalités comme le réseau- **sont gérées dans le kernelspace**. Des appels systèmes sont bien entendus à disposition pour pouvoir les manipuler. Mais en explorant les deux pseudo-filesystems que sont **/proc** et **/sys**, on peut obtenir énormément d'informations (en réalité, tout est là, donc c'est ici que l'on pourra obtenir le plus d'informations sur le réseau. Les commandes comme ``ip`` ou ``ifconfig`` ou des fichiers comme ``/etc/hostname`` ne font que piocher à un moment ou un autre dans ces données).
+Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'occurrence, comme **la totalité des fonctionnalités élémentaires d'un système moderne** -des fonctionnalités comme le réseau- **sont gérées dans le kernelspace**. Des appels systèmes sont à disposition pour pouvoir les manipuler. Mais en explorant les deux pseudo-filesystems que sont **/proc** et **/sys**, on peut obtenir énormément d'informations (en réalité, tout est là, donc c'est ici que l'on pourra obtenir le plus d'informations sur le réseau. Les commandes comme ``ip`` ou ``ifconfig`` ou comme ``hostname`` ne font que piocher à un moment ou un autre dans ces données).
 
 On a par exemple ``/sys/class/net`` qui contient un sous-répertoire par interface réseau de la machine (à l'intérieur se trouve un grand nombre de paramètres, contenus dans des fichiers).   
 Dans le cas de Docker, avec le driver réseau de base, chaque réseau Docker est en réalité une nouvelle interface bridge. Chaque conteneur créera alors une sous-interface de ce bridge, qui apparaîtra comme un sous-répertoire supplémentaire. Evidemment, il est impossible depuis le conteneur de voir d'autres interfaces que les siennes. Ceci, grâce aux namespaces.
@@ -269,17 +314,6 @@ Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'info
   * ``/proc/sys/vm/swappiness`` détermine un pourcentage à partir duquel la machine va commence à utiliser la swap en lieu et place de la RAM
 * un répertoire pour chacun des processus en cours d'exécution sur la machine, portant l'ID du processus pour nom
   * dans chacun de ces répertoire se trouve un sous-répertoire ``ns`` qui contient autant d'entrées que le processus a de `namespaces` (au max, 1 de chaque type)
-  * concrètement on peut, par exemple, avoir :
-
-  ```shell
-  $ ls /proc/16392/ns/
-  cgroup	ipc  mnt  net  pid  uts
-  ```
-
-Chacun de ces fichiers est un lien symbolique (pas réellement, mais il se comporte et se présente comme si c'était le cas) vers un namespace spécifique. Par exemple :
-```shell
-$ sudo ls  -al /proc/16392/ns/pid
-lrwxrwxrwx 1 root root 0 16 mai   14:22 /proc/16392/ns/pid -> pid:[4026531836]
 ```
 
 **Chacun des processus peut être lancé dans un namespace `pid` différent. Ils feront alors partie d'une arborescence de processus différente.**
@@ -353,7 +387,7 @@ Comme dit plus haut, ce n'est simplement pas comparable. Les deux reposent sur d
 
 #### **Si un attaquant exploite une vulnérabilité exposée par un conteneur, a-t-il une main-mise totale sur la machine sous-jacente ?**
 Cela dépend complètement du type de vulnérabilité.
-De façon générale, ça n'expose ni plus ni moins le système qu'avec un applicatif "classique" (lancé via un binaire, ou service comme systemd, directement depuis le système hôte (eg. directement dans les `namespaces` "principaux" de l'hôte)).
+De façon générale, ça n'expose ni plus ni moins le système qu'avec un applicatif "classique" (lancé via un binaire, ou service comme *systemd*, directement depuis le système hôte (eg. directement dans les `namespaces` "principaux" de l'hôte)).
 En effet, une vulnérabilité kernel qui affecte un conteneur rendra l'hôte tout aussi vulnérable car les deux partagent **"physiquement"** le même kernel.
 A l'inverse, une vulnérabilité applicative (par exemple, vulnérabilité dans la version d'Apache utilisée) n'exposera pas plus le système qu'avant. Voire moins, ceci dépend de la configuration mise en place (démon, image, conteneur, cf les parties dédiées, plus bas).
 Au mieux, l'attaquant sera strictement confiné dans le conteneur. Au pire, il aura une totale main-mise sur le système sous-jacent (qui, pour rappel, est une VM...). A mi-chemin, il sera capable de se rendre compte qu'il est dans un conteneur, et éventuellement obtenir des informations sur le système hôte.    
@@ -364,12 +398,12 @@ On trouve effectivement un engouement autour de la "conteneurisation bare-metal"
 - pas de licensing pour hyperviseurs
 - induit une **sur-exploitation des capacités des machines actuelles** (aussi appelé "comment défoncer un cache CPU", on note aussi une sur-utilisation du réseau/stockage) car prévu pour de la VM (ça veut aussi dire que le plein potentiel de ces technos n'est pas encore tout à fait exploité)
   - les dernières générations de serveurs sont (presque) adaptées. Encore quelques (dizaines d') années avant de voir leur adoption à grande échelle
-- **moins d'isolation** : on ne profite plus de l'isolation matérielle que nous offre la VM (notamment en virtualisation toute la couche OS)  
-- la virtualisation a bientôt 30 ans d'utilisation derrière elle (écosystème riche, processus rodés, etc)
+- **moins d'isolation** : on ne profite plus de l'isolation matérielle que nous offre la VM (notamment en virtualisation toute la couche OS) : la virtualisation a bientôt 30 ans d'utilisation derrière elle (écosystème riche, processus rodés, etc)
+- Intel travail sur les KataContainers (anciennement Intel Clear Containers), optimisés pour s'exécuter en bare-metal sur certains de leurs processeurs
 
-Donc oui, ça run sur du bare-metal. Mais il y a à la fois des avantages et des inconvénients. Certains pensent que les conteneurs ne sont qu'une première marche avant l'avènement des [unikernels](http://unikernel.org/) et des architectures serverless (l'hyperconvergence de l'infrastructure semble aussi être une première marche vers le serverless)...  
+Donc oui, ça run sur du bare-metal. Mais il y a à la fois des avantages et des inconvénients. Certains pensent que les conteneurs ne sont qu'une première marche avant l'avènement des [unikernels](http://unikernel.org/) et des architectures serverless (l'hyperconvergence des infrastructures semblent aussi aller en ce sens).
 
-Une réaction qui va être ou plutôt a été adoptée est de mixer les deux, pour des usages différents. Deux possibilités :
+Une réaction qui peut être adoptée est de mixer les deux, pour des usages différents. Deux possibilités :
 - machines en local, maîtrisées, conteneurisation bare-metal, hautes performances, low-latency
 - machines dans le cloud, hardware abstrait, conteneurisation dans de la VM
 
@@ -414,7 +448,7 @@ De plus, il est recommandé d'en utiliser pour bénéficier de tous les avantage
 * Utiliser un **OS dédié**. Il en existe désormais plusieurs, qui présentent tous des avantages différents car matérialisant des concepts différents. De façon générale, on retrouve certaines caractéristiques : OS léger (stockage), Docker présent nativement, diverses optimisations kernel, ou encore la sécurité (politique moindre privilège orientée Docker uniquement, etc.) On peut par exemple citer :
   * [RancherOS](http://rancher.com/rancher-os/) - le plus léger (~20Mo), uniquement kernel opti + Docker qui remplace systemd
   * [AtomicHost](http://www.projectatomic.io/download/) - développé par RedHat, embarque la sécu native RHEL (SELinux, seccomp) et est aussi optimisé pour faire tourner des conteneurs (avec Docker)
-  * [PhotonOS](https://vmware.github.io/photon/) - développé par VMWare, assez léger et limite aussi la surface d'exposition. Sa force résidant dans l'intégration avec vSphere (pour le [VIC engine](https://vmware.github.io/vic/))
+  * [PhotonOS](https://vmware.github.io/photon/) - développé par VMWare, assez léger et limite aussi la surface d'exposition. Sa force résidant dans l'intégration avec vSphere (pour le [VIC runtime](https://vmware.github.io/vic/))
 * On peut imaginer un tas d'autres mesures visant à augmenter le niveau de sécurité d'un hôte Docker :
   * customiser les `cgroups` du système afin de créer les `cgroups` parents de tous les `cgroups` enfants utilisés par les conteneurs
   * dédier une interface réseau au forwarding de port vers des conteneurs, tandis qu'une autre est utilisée pour le reste (joindre l'extérieur, administration, backup, monitoring, etc.)
@@ -741,7 +775,7 @@ Il est possible, lors du lancement d'un conteneur de limiter les appels système
 
 Dans le cadre du projet Moby, [un fichier JSON de référence](https://github.com/moby/moby/blob/master/profiles/seccomp/default.json) a été créé. Ce dernier bloque l'ensemble des appels système non nécessaire aux conteneurs tout maintenant une compatibilité applicative complète (n'est bloquant pour aucune application conteneurisée, à priori).
 
-Pour que l'engine Docker puisse utiliser `seccomp` il est impératif que le kernel dont il est question soit configuré avec l'option `CONFIG_SECCOMP` activée et Docker lui-même doit avoir été compilé avec `seccomp`. Dans ce cas-là, plusieurs appels système sont bloqués par défaut (se référer à )
+Pour que l'runtime Docker puisse utiliser `seccomp` il est impératif que le kernel dont il est question soit configuré avec l'option `CONFIG_SECCOMP` activée et Docker lui-même doit avoir été compilé avec `seccomp`. Dans ce cas-là, plusieurs appels système sont bloqués par défaut (se référer à )
 
 ## Les configurations rédibitoires (*ou mauvaises pratiques*)
 ### `--privileged` flag
