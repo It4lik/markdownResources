@@ -364,21 +364,13 @@ $ ip netns exec super_net_ns # permet d'exécuter des commandes dans le namespac
 $ ip netns exec super_net_ns ip a # par exemple
 ```
 ### Un mot sur `/proc` et `/sys`
-Avant de se pencher sur les différents drivers réseau et les différents cas d'utilisation auxquels ils répondent, par exemple, il est nécessaire de discuter un peu du fonctionnement du réseau pour un conteneur, ou en fait, plus globalement, pour une machine GNU/Linux.
 
 Comme on le répète souvent pour Linux : tout est fichier ou processus. En l'occurrence, comme **la totalité des fonctionnalités élémentaires d'un système moderne** -des fonctionnalités comme le réseau- **sont gérées dans le kernelspace**. Des appels systèmes sont à disposition pour pouvoir les manipuler. Mais en explorant les deux pseudo-filesystems que sont **/proc** et **/sys**, on peut obtenir énormément d'informations (en réalité, tout est là, donc c'est ici que l'on pourra obtenir le plus d'informations sur le réseau. Les commandes comme ``ip`` ou ``ifconfig`` ou comme ``hostname`` ne font que piocher à un moment ou un autre dans ces données).
 
 On a par exemple ``/sys/class/net`` qui contient un sous-répertoire par interface réseau de la machine (à l'intérieur se trouve un grand nombre de paramètres, contenus dans des fichiers).   
 Dans le cas de Docker, avec le driver réseau de base, chaque réseau Docker est en réalité une nouvelle interface bridge. Chaque conteneur créera alors une sous-interface de ce bridge, qui apparaîtra comme un sous-répertoire supplémentaire. Evidemment, il est impossible depuis le conteneur de voir d'autres interfaces que les siennes. Ceci, grâce aux namespaces.
 
-Pour observer cela, rendez-vous dans ``/proc/``. On y trouve énormément d'informations mais principalement deux groupes d'entités :
-* des fichiers de configuration ou d'état du kernel. Par exemple :
-  * ``/proc/cgroups`` affiche l'état des `cgroups` sur la machine
-  * ``/proc/sys/vm/swappiness`` détermine un pourcentage à partir duquel la machine va commence à utiliser la swap en lieu et place de la RAM
-* un répertoire pour chacun des processus en cours d'exécution sur la machine, portant l'ID du processus pour nom
-  * dans chacun de ces répertoire se trouve un sous-répertoire ``ns`` qui contient autant d'entrées que le processus a de `namespaces` (au max, 1 de chaque type)
-
-**Chacun des processus peut être lancé dans un namespace `pid` différent. Ils feront alors partie d'une arborescence de processus différente.**
+Autre exemple, isoler un processus dans une namespace PID revient à utiliser un autre `/proc`, puisque ce dernier liste tous les processus du système.
 
 # Questions récurrentes
 #### **Est-ce qu'un conteneur est moins secure qu'une VM ?**
