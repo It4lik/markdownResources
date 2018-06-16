@@ -39,7 +39,7 @@ Aussi, avant de d'aller plus avant, j'aimerai discuter quelques faits dont il es
   * il existe des conteneurs qui **sont des VMs**, à l'instar de ce que met en place Rocket ou KataContainers
 * il est souvent **peu pertinent** de comparer la VM et les conteneurs sur le plan de la sécurité
   * un **conteneur** *peut* **être une VM** comme dit au dessus
-  * les conteneurs GNU/Linux et la vitualisation reposent sur des concepts fondamentalement différents
+  * les conteneurs GNU/Linux et la virtualisation reposent sur des concepts fondamentalement différents
   * ce ne sont pas les mêmes usages ! Donc pas les mêmes surfaces d'exposition, pas les mêmes problématiques, etc.
   * **l'hôte de conteneurisation EST -très souvent- UNE VM** : le conteneur n'apporte qu'un niveau supérieur d'isolation, encore une fois.
   * une fois ces idées en tête, on peut comparer de façon fonctionnelle et technique la mise en place de conteneurs et VMs, cela pouvant aider à adopter un point de vue global. Mais **pour juger du niveau de sécurité des conteneurs de manière effective, c'est un raisonnement depuis zéro qu'il faut adopter et non pas un raisonnement comparatif**.
