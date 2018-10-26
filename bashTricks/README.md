@@ -116,8 +116,8 @@ echo '${test}' "is ${test}"
   - Nearly everything must be local in shell-script
     - Don't hesitate to encapsulate your whole shell script in a ```main()``` function with only local vars
     - The only global command in the code is now ```main```
-- ```[[ ]]``` supports a lot of options (like ```-f``` to test if a file exists, or ```-d``` for a directory)
-  - it also supports regex using ```=~``` operator. Stupid example :
+- ```[[ ]]``` [supports a lot of options](https://ss64.com/bash/test.html) (like ```-f``` to test if a file exists, or ```-d``` for a directory)
+  - it also supports regex tests using ```=~``` operator. Stupid example :
 ```shell
 [[ $name =~ ^John$]] \
   && echo "Your name is John." \
