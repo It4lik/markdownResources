@@ -130,6 +130,7 @@ if [[ "$input_note" =~ ^([0-9]|1[0-9]|20)$ ]]
 then
   echo 'This is not a digit for sure'
   echo 'For example the "²" char will make me fail'
+fi
 
 if [[ $input_note == [[:digit:]]* ]]
 then
