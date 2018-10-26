@@ -123,6 +123,19 @@ echo '${test}' "is ${test}"
   && echo "Your name is John." \
   || echo "Your name is not John. You've learn something."
 ```
+- `bash` can make use of what's called [*character classes*](https://www.gnu.org/software/grep/manual/html_node/Character-Classes-and-Bracket-Expressions.html) to issue robust tests :
+```shell
+read -p 'Input a note : ' input_note
+if [[ "$input_note" =~ ^([0-9]|1[0-9]|20)$ ]]
+then
+  echo 'This is not a digit for sure'
+  echo 'For example the "²" char will make me fail'
+
+if [[ $input_note == [[:digit:]]* ]]
+then
+  echo 'This is a digit (an integer) for sure'
+fi
+```
 - **```bash``` can stop his execution if command failed**. Just use ```set -e``` on top of your script.
   - ```set``` supports a few other options, [check them out](http://tldp.org/LDP/abs/html/options.html)
   - it is used to set ```bash``` options from within the script (and eventually unset them)
